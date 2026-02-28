@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme {
+  --color-gold-50: #fdf8ed;
+  --color-gold-100: #f9edcc;
+  --color-gold-200: #f2d894;
+  --color-gold-300: #ebc35c;
+  --color-gold-400: #e5ae34;
+  --color-gold-500: #d4951c;
+  --color-gold-600: #b87316;
+  --color-gold-700: #995415;
+  --color-gold-800: #7d4318;
+  --color-gold-900: #683818;
+  --color-film-black: #0a0a0a;
+  --color-film-dark: #111111;
+  --color-film-card: #1a1a1a;
+  --color-film-border: #2a2a2a;
+  --font-display: 'Playfair Display', serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-film-black);
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-film-dark);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-film-border);
+  border-radius: 3px;
+}
+
+/* Rating colors */
+.rating-10, .rating-9 { color: #22c55e; }
+.rating-8, .rating-7 { color: #eab308; }
+.rating-6, .rating-5 { color: #f97316; }
+.rating-4, .rating-3 { color: #ef4444; }
+.rating-2, .rating-1 { color: #991b1b; }

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+db/claudius.db
+db/claudius.db-shm
+db/claudius.db-wal
+data/
+.env
+*.log
