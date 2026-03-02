@@ -11,12 +11,19 @@ export default function Admin() {
   const [reminderStatus, setReminderStatus] = useState(null);
   const [reminderMsg, setReminderMsg] = useState(null);
 
+  // Letterboxd scraper state
+  const [lbStatus, setLbStatus] = useState(null);
+  const [lbScraping, setLbScraping] = useState(false);
+
   // Load reminder status
   useEffect(() => {
     api.getReminderStatus().then(s => {
       setReminderStatus(s);
       if (s.time) setReminderTime(s.time);
     }).catch(() => {});
+
+    // Load initial Letterboxd status
+    api.getLetterboxdStatus().then(setLbStatus).catch(() => {});
   }, []);
 
   // Poll enrichment status while running
@@ -32,6 +39,20 @@ export default function Admin() {
     }, 3000);
     return () => clearInterval(interval);
   }, [enriching]);
+
+  // Poll Letterboxd scrape status while running
+  useEffect(() => {
+    if (!lbScraping) return;
+    const interval = setInterval(async () => {
+      const status = await api.getLetterboxdStatus();
+      setLbStatus(status);
+      if (!status.running) {
+        setLbScraping(false);
+        clearInterval(interval);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [lbScraping]);
 
   const runImport = async () => {
     setImporting(true);
@@ -50,6 +71,15 @@ export default function Admin() {
       await api.runEnrich(batchSize);
     } catch (err) {
       setEnriching(false);
+    }
+  };
+
+  const runLbScrape = async () => {
+    setLbScraping(true);
+    try {
+      await api.scrapeLetterboxd();
+    } catch (err) {
+      setLbScraping(false);
     }
   };
 
@@ -86,6 +116,52 @@ export default function Admin() {
                 <p>Discovery pool: <span className="text-gold-400 font-medium">{importResult.discoveryCount}</span></p>
                 <p>Watchlist items: <span className="text-gold-400 font-medium">{importResult.gapCount}</span></p>
               </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Step 1b: Letterboxd North-Star Scrape */}
+      <div className="bg-film-card border border-film-border rounded-lg p-6">
+        <h2 className="font-display text-xl text-zinc-200 mb-1">Step 1b: Sync Sean Fennessey's Letterboxd</h2>
+        <p className="text-sm text-zinc-500 mb-4">
+          Scrapes <span className="text-zinc-300 font-medium">@seanfennessey</span>'s public Letterboxd profile
+          (The Ringer) and uses his ratings as a north-star signal when scoring your discovery pool.
+          Films he rates 4★+ get a significant boost; unrated watched films get a small bump.
+        </p>
+        <button onClick={runLbScrape} disabled={lbScraping}
+          className="px-6 py-2.5 bg-gold-400 text-black font-medium rounded-lg hover:bg-gold-300 disabled:opacity-50">
+          {lbScraping ? 'Scraping Letterboxd…' : 'Scrape Letterboxd'}
+        </button>
+
+        {lbStatus && (
+          <div className="mt-4 bg-film-dark border border-film-border rounded-lg p-4 text-sm space-y-2">
+            {lbStatus.running && (
+              <div className="flex items-center gap-3 text-zinc-300">
+                <div className="w-2 h-2 rounded-full bg-gold-400 animate-pulse" />
+                <span className="capitalize">{lbStatus.phase || 'working'}…</span>
+                {lbStatus.pagesTotal > 0 && (
+                  <span className="text-zinc-500">
+                    page {lbStatus.pagesDone}/{lbStatus.pagesTotal} · {lbStatus.filmsFound} films found
+                  </span>
+                )}
+              </div>
+            )}
+            {lbStatus.error && (
+              <p className="text-red-400">{lbStatus.error}</p>
+            )}
+            {lbStatus.db && lbStatus.db.total > 0 && (
+              <div className="flex gap-6 text-zinc-300">
+                <p>Films scraped: <span className="text-gold-400 font-medium">{lbStatus.db.total}</span></p>
+                <p>Rated: <span className="text-gold-400 font-medium">{lbStatus.db.rated}</span></p>
+                <p>Matched to pool: <span className="text-gold-400 font-medium">{lbStatus.db.matched}</span></p>
+              </div>
+            )}
+            {lbStatus.lastRun && !lbStatus.running && (
+              <p className="text-zinc-600 text-xs">
+                Last synced: {new Date(lbStatus.lastRun).toLocaleString()}
+                {' · '}After scraping, run <span className="text-zinc-400">Rebuild & Score</span> to apply the new signals.
+              </p>
             )}
           </div>
         )}

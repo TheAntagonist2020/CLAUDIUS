@@ -68,4 +68,9 @@ export const api = {
   getMdblistLists: () => apiFetch('/mdblist/lists'),
   getMdblistListItems: (listId) => apiFetch(`/mdblist/lists/${listId}/items`),
   sendToStremio: (data) => apiFetch('/mdblist/send-to-stremio', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Letterboxd influence (Sean Fennessey)
+  scrapeLetterboxd: () => apiFetch('/letterboxd/scrape', { method: 'POST' }),
+  getLetterboxdStatus: () => apiFetch('/letterboxd/status'),
+  getLetterboxdFilms: (params = {}) => apiFetch(`/letterboxd/films?${new URLSearchParams(params)}`),
 };

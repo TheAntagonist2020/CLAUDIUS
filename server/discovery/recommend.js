@@ -1,4 +1,5 @@
 const { getDb } = require('../db');
+const { getInfluenceMap } = require('../scraper/scrapeLetterboxd');
 
 function scoreDiscoveryPool() {
   const db = getDb();
@@ -16,6 +17,14 @@ function scoreDiscoveryPool() {
   db.prepare('SELECT decade, affinity_score FROM taste_decade_affinity').all()
     .forEach(d => { decadeAffinities[d.decade] = d.affinity_score; });
 
+  // Load Sean Fennessey's influence map (tmdb_id → { lbRating, rating10 })
+  let influenceMap = {};
+  try {
+    influenceMap = getInfluenceMap();
+    const count = Object.keys(influenceMap).length;
+    if (count > 0) console.log(`Scoring with ${count} Sean Fennessey influence signals.`);
+  } catch (_) {}
+
   const pool = db.prepare('SELECT * FROM discovery_pool WHERE excluded = 0').all();
   console.log(`Scoring ${pool.length} discovery pool films...`);
 
@@ -25,7 +34,7 @@ function scoreDiscoveryPool() {
 
   const updateAll = db.transaction(() => {
     for (const film of pool) {
-      const { score, rationale } = scoreFilm(film, genreAffinities, decadeAffinities, overallAvg);
+      const { score, rationale } = scoreFilm(film, genreAffinities, decadeAffinities, overallAvg, influenceMap);
       update.run(Math.round(score * 10) / 10, JSON.stringify(rationale), film.id);
     }
   });
@@ -34,7 +43,18 @@ function scoreDiscoveryPool() {
   console.log('Discovery pool scored.');
 }
 
-function scoreFilm(film, genreAffinities, decadeAffinities, overallAvg) {
+// Sean Fennessey's 0.5–5 star rating → 0-100 influence score
+function seanRatingToScore(lbRating) {
+  if (lbRating == null) return null; // not rated (but watched) — handled separately
+  if (lbRating >= 4.5) return 100;
+  if (lbRating >= 4.0) return 88;
+  if (lbRating >= 3.5) return 74;
+  if (lbRating >= 3.0) return 60;
+  if (lbRating >= 2.5) return 42;
+  return 28; // 2 stars or below — mild negative signal
+}
+
+function scoreFilm(film, genreAffinities, decadeAffinities, overallAvg, influenceMap = {}) {
   const reasons = [];
   let genreScore = 0;
   let genreCount = 0;
@@ -108,13 +128,37 @@ function scoreFilm(film, genreAffinities, decadeAffinities, overallAvg) {
     else if (film.runtime < 70) runtimeScore = 55;
   }
 
+  // Sean Fennessey influence signal
+  // Films he's rated highly are a strong north-star indicator;
+  // films he's seen but not rated get a neutral bump.
+  let seanScore = 50; // neutral default (not in his data)
+  const influence = film.tmdb_id ? influenceMap[film.tmdb_id] : null;
+  if (influence) {
+    if (influence.lbRating != null) {
+      seanScore = seanRatingToScore(influence.lbRating);
+      const stars = influence.lbRating % 1 === 0.5
+        ? `${Math.floor(influence.lbRating)}½★`
+        : `${influence.lbRating}★`;
+      if (influence.lbRating >= 4.0) {
+        reasons.push(`Sean Fennessey rated this ${stars} — a north-star endorsement`);
+      } else if (influence.lbRating >= 3.0) {
+        reasons.push(`Sean Fennessey has seen and rated this ${stars}`);
+      }
+    } else {
+      // Watched but unrated — he found it worth watching
+      seanScore = 57;
+      reasons.push('In Sean Fennessey\'s watched list');
+    }
+  }
+
+  // Weights: genre 28%, decade 13%, critical 22%, lists 13%, runtime 9%, sean 15%
   const totalScore = (
-    0.30 * genreScore +
-    0.15 * decadeScore +
-    0.25 * criticalScore +
-    0.15 * listScore +
-    0.10 * runtimeScore +
-    0.05 * 60 // base
+    0.28 * genreScore +
+    0.13 * decadeScore +
+    0.22 * criticalScore +
+    0.13 * listScore +
+    0.09 * runtimeScore +
+    0.15 * seanScore
   );
 
   if (reasons.length === 0) {

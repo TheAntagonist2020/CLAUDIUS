@@ -28,6 +28,7 @@ app.use('/api/rewatch', require('./routes/rewatch'));
 app.use('/api/watchlist', require('./routes/watchlist'));
 app.use('/api/mdblist', require('./routes/mdblist'));
 app.use('/api/curator', require('./routes/curator'));
+app.use('/api/letterboxd', require('./routes/letterboxd'));
 
 // Import endpoint
 app.post('/api/import/run', (req, res) => {

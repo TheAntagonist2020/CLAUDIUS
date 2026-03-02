@@ -194,3 +194,20 @@ CREATE TABLE IF NOT EXISTS streaming_availability (
     fetched_at  TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (film_id, provider_name, type, region)
 );
+
+-- Letterboxd influence tracking (trusted critics / north-star users)
+CREATE TABLE IF NOT EXISTS letterboxd_influences (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    username    TEXT NOT NULL,
+    lb_slug     TEXT NOT NULL,
+    title       TEXT,
+    lb_rating   REAL,           -- 0.5 to 5.0 star scale
+    rating_10   INTEGER,        -- 1-10 normalized
+    tmdb_id     INTEGER,        -- matched to discovery_pool
+    year        INTEGER,
+    scraped_at  TEXT DEFAULT (datetime('now')),
+    UNIQUE(username, lb_slug)
+);
+
+CREATE INDEX IF NOT EXISTS idx_lb_influences_username ON letterboxd_influences(username);
+CREATE INDEX IF NOT EXISTS idx_lb_influences_tmdb ON letterboxd_influences(tmdb_id);
