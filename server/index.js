@@ -124,13 +124,19 @@ app.get('/api/search', (req, res) => {
   res.json({ films, discovery });
 });
 
-// SPA fallback
+// Health check for Railway
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
+
+// SPA fallback — must come after all API routes
 app.get('/{*splat}', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
 });
 
-app.listen(config.PORT, () => {
-  console.log(`\n  CLAUDIUS server running on http://localhost:${config.PORT}\n`);
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(config.PORT, HOST, () => {
+  console.log(`\n  CLAUDIUS server running on http://${HOST}:${config.PORT}\n`);
 
   // Initialize queue tables and start the daily scheduler
   try {
