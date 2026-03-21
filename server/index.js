@@ -11,6 +11,8 @@ const {
   getDailyPick, getReminderStatus,
   setupScheduledReminder, removeScheduledReminder,
 } = require('./reminder');
+const { initQueueTables } = require('./queue/dailyQueue');
+const { startScheduler } = require('./queue/scheduler');
 
 const app = express();
 app.use(cors());
@@ -28,6 +30,7 @@ app.use('/api/rewatch', require('./routes/rewatch'));
 app.use('/api/watchlist', require('./routes/watchlist'));
 app.use('/api/mdblist', require('./routes/mdblist'));
 app.use('/api/curator', require('./routes/curator'));
+app.use('/api/queue', require('./routes/queue'));
 
 // Import endpoint
 app.post('/api/import/run', (req, res) => {
@@ -128,4 +131,13 @@ app.get('/{*splat}', (req, res) => {
 
 app.listen(config.PORT, () => {
   console.log(`\n  CLAUDIUS server running on http://localhost:${config.PORT}\n`);
+
+  // Initialize queue tables and start the daily scheduler
+  try {
+    initQueueTables();
+    startScheduler();
+    console.log('  Mission Control: ACTIVE\n');
+  } catch (err) {
+    console.error('  Failed to start queue scheduler:', err.message);
+  }
 });

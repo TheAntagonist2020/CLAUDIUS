@@ -68,4 +68,17 @@ export const api = {
   getMdblistLists: () => apiFetch('/mdblist/lists'),
   getMdblistListItems: (listId) => apiFetch(`/mdblist/lists/${listId}/items`),
   sendToStremio: (data) => apiFetch('/mdblist/send-to-stremio', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Queue / Mission Control
+  getQueueToday: () => apiFetch('/queue/today'),
+  getQueueCurrent: () => apiFetch('/queue/current'),
+  startQueue: (id) => apiFetch(`/queue/start/${id}`, { method: 'POST' }),
+  completeQueue: (id, data = {}) => apiFetch(`/queue/complete/${id}`, { method: 'POST', body: JSON.stringify(data) }),
+  skipQueue: (id, data = {}) => apiFetch(`/queue/skip/${id}`, { method: 'POST', body: JSON.stringify(data) }),
+  deferQueue: (id) => apiFetch(`/queue/defer/${id}`, { method: 'POST' }),
+  buildQueue: (data = {}) => apiFetch('/queue/build', { method: 'POST', body: JSON.stringify(data) }),
+  getQueueStats: () => apiFetch('/queue/stats'),
+  getQueueHistory: (limit = 30) => apiFetch(`/queue/history?limit=${limit}`),
+  getUnloggedWatches: () => apiFetch('/queue/letterboxd/unlogged'),
+  markLetterboxdLogged: (ids) => apiFetch('/queue/letterboxd/mark-logged', { method: 'POST', body: JSON.stringify({ ids }) }),
 };

@@ -194,3 +194,44 @@ CREATE TABLE IF NOT EXISTS streaming_availability (
     fetched_at  TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (film_id, provider_name, type, region)
 );
+
+-- Daily queue: the system picks films, you watch them. No decisions.
+CREATE TABLE IF NOT EXISTS daily_queue (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    queue_date      TEXT NOT NULL,
+    slot            TEXT NOT NULL CHECK(slot IN ('morning', 'afternoon', 'evening', 'bonus')),
+    title           TEXT NOT NULL,
+    year            INTEGER,
+    imdb_id         TEXT,
+    tmdb_id         INTEGER,
+    source_type     TEXT NOT NULL DEFAULT 'mdblist',
+    source_list     TEXT,
+    source_list_id  INTEGER,
+    runtime         INTEGER,
+    genres          TEXT,
+    language        TEXT DEFAULT 'en',
+    poster_path     TEXT,
+    streaming_on    TEXT,
+    reason          TEXT,
+    status          TEXT NOT NULL DEFAULT 'assigned' CHECK(status IN ('assigned', 'watching', 'completed', 'skipped', 'deferred')),
+    assigned_at     TEXT DEFAULT (datetime('now')),
+    started_at      TEXT,
+    completed_at    TEXT,
+    rating          INTEGER CHECK(rating BETWEEN 1 AND 10),
+    letterboxd_logged INTEGER DEFAULT 0,
+    notes           TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_queue_date ON daily_queue(queue_date);
+CREATE INDEX IF NOT EXISTS idx_queue_status ON daily_queue(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_queue_date_slot ON daily_queue(queue_date, slot);
+
+-- Track which MDB list items have been queued to avoid repeats
+CREATE TABLE IF NOT EXISTS queue_history (
+    imdb_id         TEXT PRIMARY KEY,
+    title           TEXT,
+    queued_count    INTEGER DEFAULT 1,
+    last_queued     TEXT DEFAULT (datetime('now')),
+    completed       INTEGER DEFAULT 0,
+    skipped         INTEGER DEFAULT 0
+);

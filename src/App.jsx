@@ -1,5 +1,6 @@
 import React from 'react';
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom';
+import MissionControl from './pages/MissionControl';
 import Dashboard from './pages/Dashboard';
 import FilmLibrary from './pages/FilmLibrary';
 import FilmPage from './pages/FilmPage';
@@ -11,7 +12,8 @@ import Watchlist from './pages/Watchlist';
 import Admin from './pages/Admin';
 
 const NAV_ITEMS = [
-  { path: '/', label: 'Dashboard', icon: '/' },
+  { path: '/', label: 'Mission', icon: '\u{1F3AF}' },
+  { path: '/dashboard', label: 'Dashboard', icon: '\u{1F4CA}' },
   { path: '/library', label: 'Library', icon: '\u{1F3AC}' },
   { path: '/taste', label: 'Taste', icon: '\u{1F9E0}' },
   { path: '/tonight', label: 'Tonight', icon: '\u{1F3AC}' },
@@ -56,7 +58,8 @@ export default function App() {
       {/* Main content */}
       <main className="flex-1 overflow-y-auto bg-film-black">
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<MissionControl />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/library" element={<FilmLibrary />} />
           <Route path="/film/:id" element={<FilmPage />} />
           <Route path="/taste" element={<TasteProfile />} />
