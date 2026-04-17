@@ -10,6 +10,7 @@ module.exports = {
   TRAKT_SYNC_INTERVAL_HOURS: Number(process.env.TRAKT_SYNC_INTERVAL_HOURS) || 6,
   APP_PASSWORD: process.env.APP_PASSWORD || 'claudius',
   MDBLIST_API_KEY: process.env.MDBLIST_API_KEY,
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
   JWT_SECRET: process.env.JWT_SECRET || 'claudius-dev-secret-change-in-prod',
   NODE_ENV: process.env.NODE_ENV || 'development',
 };

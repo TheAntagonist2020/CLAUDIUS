@@ -48,6 +48,7 @@ app.use('/api/mdblist', require('./routes/mdblist'));
 app.use('/api/curator', require('./routes/curator'));
 app.use('/api/queue', require('./routes/queue'));
 app.use('/api/trakt', require('./routes/trakt'));
+app.use('/api/chat', require('./routes/chat'));
 
 // Import endpoint
 app.post('/api/import/run', (req, res) => {

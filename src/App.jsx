@@ -10,9 +10,11 @@ import Queue from './pages/Queue';
 import Rewatch from './pages/Rewatch';
 import Watchlist from './pages/Watchlist';
 import Admin from './pages/Admin';
+import Chat from './pages/Chat';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Queue', icon: '▶' },
+  { path: '/chat', label: 'Chat', icon: '💬' },
   { path: '/dashboard', label: 'Dashboard', icon: '🏠' },
   { path: '/library', label: 'Library', icon: '🎬' },
   { path: '/taste', label: 'Taste', icon: '🧠' },
@@ -64,6 +66,7 @@ export default function App() {
 
         <Routes>
           <Route path="/" element={<Queue />} />
+          <Route path="/chat" element={<Chat />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/library" element={<FilmLibrary />} />
           <Route path="/film/:id" element={<FilmPage />} />
