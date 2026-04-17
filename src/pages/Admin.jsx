@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
+import PushSettings from '../components/common/PushSettings';
 
 export default function Admin() {
   const [importResult, setImportResult] = useState(null);
@@ -318,6 +319,8 @@ export default function Admin() {
           </div>
         )}
       </div>
+
+      <PushSettings />
 
       {/* Info */}
       <div className="bg-film-dark border border-film-border rounded-lg p-5 text-sm text-zinc-500">

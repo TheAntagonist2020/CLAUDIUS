@@ -13,6 +13,7 @@ const {
 } = require('./reminder');
 const { isAuthenticated } = require('./trakt/traktClient');
 const { syncFromTrakt } = require('./trakt/traktSync');
+const { startScheduler: startPushScheduler } = require('./notifications/scheduler');
 
 const app = express();
 app.use(cors());
@@ -49,6 +50,7 @@ app.use('/api/curator', require('./routes/curator'));
 app.use('/api/queue', require('./routes/queue'));
 app.use('/api/trakt', require('./routes/trakt'));
 app.use('/api/chat', require('./routes/chat'));
+app.use('/api/put-it-on', require('./routes/putItOn'));
 
 // Import endpoint
 app.post('/api/import/run', (req, res) => {
@@ -157,4 +159,7 @@ app.listen(config.PORT, () => {
     console.log('[Trakt] Running scheduled sync...');
     syncFromTrakt().catch(err => console.error('[Trakt] Scheduled sync error:', err.message));
   }, syncIntervalMs);
+
+  // Push-notification scheduler (ntfy.sh)
+  startPushScheduler();
 });

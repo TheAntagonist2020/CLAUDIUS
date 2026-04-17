@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { api } from '../lib/api';
+import PutItOn from '../components/common/PutItOn';
 
 const TMDB_IMG = 'https://image.tmdb.org/t/p/w200';
 const TMDB_IMG_LG = 'https://image.tmdb.org/t/p/w500';
@@ -38,6 +39,8 @@ export default function Dashboard() {
         <h1 className="font-display text-3xl font-bold text-zinc-100">Welcome back</h1>
         <p className="text-zinc-500 mt-1">Your film intelligence at a glance</p>
       </div>
+
+      <PutItOn />
 
       {/* Daily Pick */}
       {dailyPick && (
