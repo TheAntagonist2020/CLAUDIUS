@@ -43,12 +43,21 @@ app.post('/api/import/run', (req, res) => {
 
 app.post('/api/import/trakt', (req, res) => {
   try {
+    // Clear any stuck transaction from a previous failed run
+    const db = getDb();
+    if (db.inTransaction) { try { db.exec('ROLLBACK'); } catch {} }
+
     const sourcePath = (req.body && req.body.path) || null;
     const result = importTraktExport(sourcePath);
     if (result && result.error) {
       return res.status(400).json({ success: false, ...result });
     }
-    try { buildTasteProfile(); scoreDiscoveryPool(); } catch {}
+
+    if (db.inTransaction) { try { db.exec('ROLLBACK'); } catch {} }
+    try { buildTasteProfile(); } catch (e) { console.error('buildTasteProfile:', e.message); }
+    if (db.inTransaction) { try { db.exec('ROLLBACK'); } catch {} }
+    try { scoreDiscoveryPool(); } catch (e) { console.error('scoreDiscoveryPool:', e.message); }
+
     res.json({ success: true, ...result });
   } catch (err) {
     res.status(500).json({ error: err.message });

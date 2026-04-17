@@ -4,15 +4,28 @@ const AdmZip = require('adm-zip');
 const { getDb } = require('../db');
 const config = require('../config');
 
-// Accepts either:
-//   - a path to a Trakt-export zip file
+// Imports a Trakt data export. Accepts:
+//   - a path to a trakt-export-*.zip file
 //   - a directory containing already-extracted JSON files
-// Looks in DATA_DIR by default for a *.zip or a trakt/ subfolder.
+//   - no argument → auto-discover in DATA_DIR (zip or extracted)
+//
+// Handles Trakt's real export format: multi-part numbered files, hyphens.
+//   watched-movies-1.json, watched-movies-2.json, ...
+//   watched-history-1.json, ... (individual play events)
+//   ratings-movies-1.json, ratings-movies-2.json, ...
+//   lists-watchlist.json
 
 function findDefaultSource() {
   if (!fs.existsSync(config.DATA_DIR)) return null;
 
   const entries = fs.readdirSync(config.DATA_DIR);
+
+  // Prefer extracted JSONs if they exist — avoids re-reading the zip every time
+  const hasExtracted = entries.some(f =>
+    /^(watched-movies|watched-history|ratings-movies|lists-watchlist)/i.test(f)
+  );
+  if (hasExtracted) return config.DATA_DIR;
+
   const zip = entries.find(f => /trakt.*\.zip$/i.test(f));
   if (zip) return path.join(config.DATA_DIR, zip);
 
@@ -22,11 +35,12 @@ function findDefaultSource() {
   return null;
 }
 
+// Load raw entries: { filename_without_extension → parsed JSON }
 function loadJsonFiles(source) {
-  // Returns a map of { basename_without_ext: parsed_json }
   const result = {};
 
-  if (fs.statSync(source).isFile() && source.toLowerCase().endsWith('.zip')) {
+  const stat = fs.statSync(source);
+  if (stat.isFile() && source.toLowerCase().endsWith('.zip')) {
     const zip = new AdmZip(source);
     for (const entry of zip.getEntries()) {
       if (entry.isDirectory) continue;
@@ -41,7 +55,6 @@ function loadJsonFiles(source) {
     return result;
   }
 
-  // Directory
   for (const f of fs.readdirSync(source)) {
     if (!f.toLowerCase().endsWith('.json')) continue;
     const base = path.basename(f, '.json').toLowerCase();
@@ -54,14 +67,17 @@ function loadJsonFiles(source) {
   return result;
 }
 
-// Find the first key matching any of the given substrings (case-insensitive)
-function findKey(obj, ...needles) {
-  const keys = Object.keys(obj);
-  for (const needle of needles) {
-    const match = keys.find(k => k.includes(needle));
-    if (match) return match;
+// Merge every file whose normalized name starts with one of the given prefixes.
+// Normalization strips trailing -N, -NN, -UUID-N, etc.
+function collectMatching(files, prefixes) {
+  const out = [];
+  for (const [name, content] of Object.entries(files)) {
+    if (!Array.isArray(content)) continue;
+    if (prefixes.some(p => name.startsWith(p))) {
+      out.push(...content);
+    }
   }
-  return null;
+  return out;
 }
 
 function movieIds(entry) {
@@ -82,19 +98,34 @@ function importTraktExport(sourcePath) {
   const source = sourcePath || findDefaultSource();
 
   if (!source) {
-    console.error(`No Trakt export found. Place a trakt-export-*.zip in ${config.DATA_DIR}`);
-    console.error(`or unzip it into ${config.DATA_DIR}/trakt/`);
+    console.error(`No Trakt export found. Place a trakt-export-*.zip or its extracted`);
+    console.error(`JSON files in: ${config.DATA_DIR}`);
     return { error: 'no-source' };
   }
 
   console.log(`Importing Trakt export from: ${source}`);
   const files = loadJsonFiles(source);
   const fileList = Object.keys(files);
-  console.log(`  Found files: ${fileList.join(', ') || '(none)'}`);
+  console.log(`  Found ${fileList.length} json file(s).`);
 
   if (fileList.length === 0) {
     return { error: 'no-files' };
   }
+
+  // Collect entries across all multi-part files
+  const watchedMovies = collectMatching(files, ['watched-movies', 'watched_movies']);
+  const watchedHistory = collectMatching(files, ['watched-history', 'watched_history']);
+  const ratings = collectMatching(files, ['ratings-movies', 'ratings_movies']);
+  const watchlist = collectMatching(files, ['lists-watchlist', 'watchlist-movies', 'watchlist_movies', 'watchlist']);
+
+  // Prefer watched-history (individual play events with dates); fall back to
+  // watched-movies (one summary row per film) if history isn't exported.
+  const watchSource = watchedHistory.length > 0 ? watchedHistory : watchedMovies;
+  const watchSourceLabel = watchedHistory.length > 0 ? 'watched-history-*' : 'watched-movies-*';
+
+  console.log(`  watched entries: ${watchSource.length} (from ${watchSourceLabel})`);
+  console.log(`  rating entries:  ${ratings.length}`);
+  console.log(`  watchlist:       ${watchlist.length}`);
 
   const insertFilm = db.prepare(`
     INSERT OR IGNORE INTO films (title, year, tmdb_id, imdb_id, trakt_id, slug)
@@ -136,71 +167,51 @@ function importTraktExport(sourcePath) {
 
   const stats = { watched: 0, ratings: 0, watchlist: 0, unmatched: 0 };
 
-  // --- Watched (history or watched file) ---
-  const watchedKey = findKey(files, 'watched_movies', 'movies_watched', 'watched')
-    || findKey(files, 'history_movies', 'history');
-  if (watchedKey) {
-    console.log(`  Watched entries from "${watchedKey}.json"...`);
-    const tx = db.transaction(() => {
-      for (const entry of files[watchedKey] || []) {
-        if (entry.type && entry.type !== 'movie') continue;
-        const ids = movieIds(entry);
-        const filmId = upsertFilm(ids);
-        if (!filmId) { stats.unmatched++; continue; }
-        const watchedAt = entry.watched_at || entry.last_watched_at;
-        if (watchedAt) {
-          insertWatch.run(filmId, watchedAt);
-          stats.watched++;
-        } else if (entry.plays) {
-          insertWatch.run(filmId, new Date().toISOString());
-          stats.watched++;
-        }
+  const runWatches = db.transaction(() => {
+    for (const entry of watchSource) {
+      if (entry.type && entry.type !== 'movie') continue;
+      if (!entry.movie) continue;
+      const ids = movieIds(entry);
+      const filmId = upsertFilm(ids);
+      if (!filmId) { stats.unmatched++; continue; }
+      const watchedAt = entry.watched_at || entry.last_watched_at;
+      if (watchedAt) {
+        insertWatch.run(filmId, watchedAt);
+        stats.watched++;
       }
-    });
-    tx();
-  }
+    }
+  });
 
-  // --- Ratings ---
-  const ratingsKey = findKey(files, 'ratings_movies', 'movies_ratings', 'ratings');
-  if (ratingsKey) {
-    console.log(`  Ratings from "${ratingsKey}.json"...`);
-    const tx = db.transaction(() => {
-      for (const entry of files[ratingsKey] || []) {
-        if (entry.type && entry.type !== 'movie') continue;
-        const ids = movieIds(entry);
-        const filmId = upsertFilm(ids);
-        if (!filmId || !entry.rating) { if (!filmId) stats.unmatched++; continue; }
-        const r = Math.round(Number(entry.rating));
-        if (r >= 1 && r <= 10) {
-          insertRating.run(filmId, r, entry.rated_at || null);
-          stats.ratings++;
-        }
+  const runRatings = db.transaction(() => {
+    for (const entry of ratings) {
+      if (entry.type && entry.type !== 'movie') continue;
+      if (!entry.movie) continue;
+      const ids = movieIds(entry);
+      const filmId = upsertFilm(ids);
+      if (!filmId || !entry.rating) { if (!filmId) stats.unmatched++; continue; }
+      const r = Math.round(Number(entry.rating));
+      if (r >= 1 && r <= 10) {
+        insertRating.run(filmId, r, entry.rated_at || null);
+        stats.ratings++;
       }
-    });
-    tx();
-  }
+    }
+  });
 
-  // --- Watchlist ---
-  const watchlistKey = findKey(files, 'watchlist_movies', 'movies_watchlist', 'watchlist');
-  if (watchlistKey) {
-    console.log(`  Watchlist from "${watchlistKey}.json"...`);
-    const tx = db.transaction(() => {
-      for (const entry of files[watchlistKey] || []) {
-        if (entry.type && entry.type !== 'movie') continue;
-        const ids = movieIds(entry);
-        if (!ids.title) continue;
-        // Also upsert into films so links resolve if the user watches it later
-        upsertFilm(ids);
-        insertWatchlist.run({
-          title: ids.title,
-          year: ids.year,
-          tmdb_id: ids.tmdb_id,
-        });
-        stats.watchlist++;
-      }
-    });
-    tx();
-  }
+  const runWatchlist = db.transaction(() => {
+    for (const entry of watchlist) {
+      if (entry.type && entry.type !== 'movie') continue;
+      if (!entry.movie) continue;
+      const ids = movieIds(entry);
+      if (!ids.title) continue;
+      upsertFilm(ids);
+      insertWatchlist.run({ title: ids.title, year: ids.year, tmdb_id: ids.tmdb_id });
+      stats.watchlist++;
+    }
+  });
+
+  if (watchSource.length) runWatches();
+  if (ratings.length) runRatings();
+  if (watchlist.length) runWatchlist();
 
   console.log(`Trakt import complete:`);
   console.log(`  ${stats.watched} watches, ${stats.ratings} ratings, ${stats.watchlist} watchlist items, ${stats.unmatched} unmatched.`);
