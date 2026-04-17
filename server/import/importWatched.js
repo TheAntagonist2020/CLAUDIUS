@@ -11,11 +11,14 @@ function importWatched() {
   if (fs.existsSync(config.WATCHED_DATA_PATH)) {
     const csvContent = fs.readFileSync(config.WATCHED_DATA_PATH, 'utf8');
     data = parseCSV(csvContent);
-  } else {
+  } else if (fs.existsSync(config.XLSX_DATA_PATH)) {
     const XLSX = require('xlsx');
     const workbook = XLSX.readFile(config.XLSX_DATA_PATH);
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     data = XLSX.utils.sheet_to_json(sheet);
+  } else {
+    console.warn(`  No watched-data file found at ${config.WATCHED_DATA_PATH} or ${config.XLSX_DATA_PATH} — skipping.`);
+    return 0;
   }
 
   console.log(`Importing ${data.length} films...`);

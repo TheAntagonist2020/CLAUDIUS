@@ -8,6 +8,8 @@
     "server": "node server/index.js",
     "build": "vite build",
     "import": "node server/import/runFullImport.js",
+    "import:trakt": "node server/import/importTraktExport.js",
+    "seed": "node server/import/seedDemo.js",
     "start": "node server/index.js"
   },
   "keywords": [],
@@ -15,6 +17,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "adm-zip": "^0.5.17",
     "better-sqlite3": "^12.6.2",
     "bottleneck": "^2.19.5",
     "cors": "^2.8.6",

@@ -4,6 +4,10 @@ const config = require('../config');
 
 function importSuperList() {
   const db = getDb();
+  if (!fs.existsSync(config.SUPER_LIST_PATH)) {
+    console.warn(`  No super-list file at ${config.SUPER_LIST_PATH} — skipping.`);
+    return 0;
+  }
   const content = fs.readFileSync(config.SUPER_LIST_PATH, 'utf8');
   const data = parseCSV(content);
 

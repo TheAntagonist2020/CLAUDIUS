@@ -1,5 +1,6 @@
 const { getDb } = require('../db');
 const { getMovieDetails } = require('./tmdbClient');
+const config = require('../config');
 
 let enrichmentStatus = { running: false, total: 0, completed: 0, errors: 0 };
 
@@ -8,6 +9,11 @@ function getEnrichmentStatus() {
 }
 
 async function enrichFilms(batchSize = 100) {
+  if (!config.TMDB_API_KEY) {
+    console.warn('Enrichment skipped: TMDB_API_KEY is not set. Add it to .env to enable.');
+    return 0;
+  }
+
   const db = getDb();
 
   const unenriched = db.prepare(

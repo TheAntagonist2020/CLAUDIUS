@@ -79,20 +79,31 @@ function saveSettings(settings) {
   fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
 }
 
-// Windows Task Scheduler integration
+// Windows Task Scheduler integration (no-op on non-Windows; settings still persist)
 const TASK_NAME = 'CLAUDIUS_MovieReminder';
+const IS_WINDOWS = process.platform === 'win32';
 
 function setupScheduledReminder(time) {
+  if (!IS_WINDOWS) {
+    const settings = getSettings();
+    settings.enabled = true;
+    settings.time = time;
+    settings.lastSet = new Date().toISOString();
+    saveSettings(settings);
+    return {
+      success: true,
+      message: `Reminder time saved for ${time}. System scheduling is Windows-only; use cron/launchd to hit /api/reminder/daily.`,
+    };
+  }
+
   const scriptPath = path.join(__dirname, '..', 'scripts', 'reminder-toast.ps1');
   const [hours, minutes] = time.split(':');
 
   try {
-    // Remove existing task first
     try {
       execSync(`schtasks /delete /tn "${TASK_NAME}" /f`, { stdio: 'ignore' });
     } catch {}
 
-    // Create new scheduled task
     execSync(
       `schtasks /create /tn "${TASK_NAME}" /tr "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File \\"${scriptPath}\\"" /sc daily /st ${hours}:${minutes} /f`,
       { stdio: 'pipe' }
@@ -111,9 +122,11 @@ function setupScheduledReminder(time) {
 }
 
 function removeScheduledReminder() {
-  try {
-    execSync(`schtasks /delete /tn "${TASK_NAME}" /f`, { stdio: 'pipe' });
-  } catch {}
+  if (IS_WINDOWS) {
+    try {
+      execSync(`schtasks /delete /tn "${TASK_NAME}" /f`, { stdio: 'pipe' });
+    } catch {}
+  }
 
   const settings = getSettings();
   settings.enabled = false;
@@ -125,13 +138,16 @@ function removeScheduledReminder() {
 function getReminderStatus() {
   const settings = getSettings();
   let taskExists = false;
-  try {
-    execSync(`schtasks /query /tn "${TASK_NAME}"`, { stdio: 'pipe' });
-    taskExists = true;
-  } catch {}
+  if (IS_WINDOWS) {
+    try {
+      execSync(`schtasks /query /tn "${TASK_NAME}"`, { stdio: 'pipe' });
+      taskExists = true;
+    } catch {}
+  }
 
   return {
     ...settings,
+    platform: process.platform,
     taskExists,
   };
 }

@@ -3,8 +3,13 @@ import { api } from '../lib/api';
 
 export default function Admin() {
   const [importResult, setImportResult] = useState(null);
+  const [traktResult, setTraktResult] = useState(null);
+  const [seedResult, setSeedResult] = useState(null);
   const [enrichStatus, setEnrichStatus] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [importingTrakt, setImportingTrakt] = useState(false);
+  const [seeding, setSeeding] = useState(false);
+  const [traktPath, setTraktPath] = useState('');
   const [enriching, setEnriching] = useState(false);
   const [batchSize, setBatchSize] = useState(200);
   const [reminderTime, setReminderTime] = useState('19:00');
@@ -44,6 +49,30 @@ export default function Admin() {
     setImporting(false);
   };
 
+  const runTraktImport = async () => {
+    setImportingTrakt(true);
+    setTraktResult(null);
+    try {
+      const result = await api.runImportTrakt(traktPath || null);
+      setTraktResult(result);
+    } catch (err) {
+      setTraktResult({ error: err.message });
+    }
+    setImportingTrakt(false);
+  };
+
+  const runSeedDemo = async () => {
+    setSeeding(true);
+    setSeedResult(null);
+    try {
+      const result = await api.runSeed();
+      setSeedResult(result);
+    } catch (err) {
+      setSeedResult({ error: err.message });
+    }
+    setSeeding(false);
+  };
+
   const runEnrich = async () => {
     setEnriching(true);
     try {
@@ -66,15 +95,76 @@ export default function Admin() {
         <p className="text-zinc-500 mt-1">Import, enrich, and maintain your data</p>
       </div>
 
-      {/* Step 1: Import */}
+      {/* Step 1a: Trakt export */}
       <div className="bg-film-card border border-film-border rounded-lg p-6">
-        <h2 className="font-display text-xl text-zinc-200 mb-2">Step 1: Import Data</h2>
+        <h2 className="font-display text-xl text-zinc-200 mb-2">Step 1: Import from Trakt export</h2>
         <p className="text-sm text-zinc-500 mb-4">
-          Import your watched films (CSV), discovery pool (SUPER-LIST), and gap lists into the database.
+          Drop your <code className="text-gold-400">trakt-export-*.zip</code> into the <code className="text-gold-400">data/</code>{' '}
+          folder (or unzip into <code className="text-gold-400">data/trakt/</code>) and click Import.
+          Optionally specify an absolute path below.
+        </p>
+        <div className="flex items-center gap-3 mb-3">
+          <input
+            type="text"
+            placeholder="(optional) absolute path to zip or folder"
+            value={traktPath}
+            onChange={e => setTraktPath(e.target.value)}
+            className="flex-1 bg-film-dark border border-film-border rounded px-3 py-1.5 text-sm text-zinc-200"
+          />
+          <button onClick={runTraktImport} disabled={importingTrakt}
+            className="px-6 py-2.5 bg-gold-400 text-black font-medium rounded-lg hover:bg-gold-300 disabled:opacity-50">
+            {importingTrakt ? 'Importing...' : 'Import Trakt'}
+          </button>
+        </div>
+        {traktResult && (
+          <div className="mt-2 bg-film-dark border border-film-border rounded-lg p-4 text-sm">
+            {traktResult.error ? (
+              <p className="text-red-400">{traktResult.error}</p>
+            ) : (
+              <div className="space-y-1 text-zinc-300">
+                <p>Watches: <span className="text-gold-400 font-medium">{traktResult.watched}</span></p>
+                <p>Ratings: <span className="text-gold-400 font-medium">{traktResult.ratings}</span></p>
+                <p>Watchlist: <span className="text-gold-400 font-medium">{traktResult.watchlist}</span></p>
+                {traktResult.unmatched > 0 && <p className="text-zinc-500">Unmatched entries skipped: {traktResult.unmatched}</p>}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Seed demo data */}
+      <div className="bg-film-card border border-film-border rounded-lg p-6">
+        <h2 className="font-display text-xl text-zinc-200 mb-2">Or: load demo data</h2>
+        <p className="text-sm text-zinc-500 mb-4">
+          Populates ~40 iconic watched films, 30 discovery candidates, and a watchlist so you can
+          explore CLAUDIUS immediately. Safe to run alongside your own data — duplicates are ignored.
+        </p>
+        <button onClick={runSeedDemo} disabled={seeding}
+          className="px-6 py-2.5 bg-film-dark border border-gold-400/40 text-gold-400 font-medium rounded-lg hover:bg-gold-400/10 disabled:opacity-50">
+          {seeding ? 'Seeding...' : 'Load Demo Data'}
+        </button>
+        {seedResult && (
+          <div className="mt-4 text-sm text-zinc-400">
+            {seedResult.error ? (
+              <span className="text-red-400">{seedResult.error}</span>
+            ) : (
+              `Seeded ${seedResult.watched} watched, ${seedResult.discovery} discovery, ${seedResult.watchlist} watchlist.`
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Step 1b: Legacy CSV import */}
+      <div className="bg-film-card border border-film-border rounded-lg p-6">
+        <h2 className="font-display text-xl text-zinc-200 mb-2">Advanced: Import from CSVs</h2>
+        <p className="text-sm text-zinc-500 mb-4">
+          Legacy pipeline. Expects <code className="text-gold-400">watched.csv</code>,{' '}
+          <code className="text-gold-400">super-list.csv</code>, and optional gap lists in the{' '}
+          <code className="text-gold-400">data/</code> directory.
         </p>
         <button onClick={runImport} disabled={importing}
-          className="px-6 py-2.5 bg-gold-400 text-black font-medium rounded-lg hover:bg-gold-300 disabled:opacity-50">
-          {importing ? 'Importing...' : 'Run Full Import'}
+          className="px-6 py-2.5 bg-film-dark border border-film-border text-zinc-300 font-medium rounded-lg hover:border-zinc-500 disabled:opacity-50">
+          {importing ? 'Importing...' : 'Run CSV Import'}
         </button>
         {importResult && (
           <div className="mt-4 bg-film-dark border border-film-border rounded-lg p-4 text-sm">
@@ -142,8 +232,9 @@ export default function Admin() {
       <div className="bg-film-card border border-film-border rounded-lg p-6">
         <h2 className="font-display text-xl text-zinc-200 mb-2">Daily Movie Reminder</h2>
         <p className="text-sm text-zinc-500 mb-4">
-          Get a Windows notification at a time you choose reminding you to watch a film.
-          CLAUDIUS will include today's suggestion in the notification.
+          Save a preferred time for your daily pick. On Windows, a scheduled toast notification will
+          fire automatically. On Mac/Linux, the time is stored and you can hit{' '}
+          <code className="text-gold-400">/api/reminder/daily</code> from cron/launchd.
         </p>
 
         <div className="flex items-center gap-4 mb-4">

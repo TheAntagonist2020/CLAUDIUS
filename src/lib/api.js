@@ -42,6 +42,8 @@ export const api = {
 
   // Import & Enrich
   runImport: () => apiFetch('/import/run', { method: 'POST' }),
+  runImportTrakt: (path) => apiFetch('/import/trakt', { method: 'POST', body: JSON.stringify({ path: path || null }) }),
+  runSeed: () => apiFetch('/import/seed', { method: 'POST' }),
   runEnrich: (batch) => apiFetch('/enrich/run', { method: 'POST', body: JSON.stringify({ batch }) }),
   getEnrichStatus: () => apiFetch('/enrich/status'),
 

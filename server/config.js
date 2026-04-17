@@ -1,15 +1,27 @@
 require('dotenv').config();
+const path = require('path');
+
+// Default data directory: <repo>/data. Override with DATA_DIR env var.
+// Each specific path can also be overridden individually via env.
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
+
+function dataPath(name) {
+  return path.join(DATA_DIR, name);
+}
 
 module.exports = {
-  PORT: process.env.PORT || 3001,
+  PORT: Number(process.env.PORT) || 3001,
+  HOST: process.env.HOST || '0.0.0.0',
   TMDB_API_KEY: process.env.TMDB_API_KEY,
   TMDB_BASE_URL: process.env.TMDB_BASE_URL || 'https://api.themoviedb.org/3',
-  DATA_DIR: process.env.DATA_DIR || 'C:\\Users\\silve_i21do49\\OneDrive\\Desktop',
-  WATCHED_DATA_PATH: 'C:\\Users\\silve_i21do49\\OneDrive\\Desktop\\movie-database-files\\complete_movie_data.csv',
-  SUPER_LIST_PATH: 'C:\\Users\\silve_i21do49\\OneDrive\\Desktop\\movie-database-files\\TheAntagonist2049-SUPER-LIST.csv',
-  WATCH_HISTORY_PATH: 'C:\\Users\\silve_i21do49\\OneDrive\\Desktop\\movie-database-files\\complete_movie_watch_history.csv',
-  REVIEW_TRACKER_PATH: 'C:\\Users\\silve_i21do49\\OneDrive\\Desktop\\DALTON PAY ATTENTION\\LUNARA_Review_Tracker.csv',
-  GAP_LIST_PATH: 'C:\\Users\\silve_i21do49\\OneDrive\\Desktop\\movie-database-files\\dalton_gap_mustfix_29.csv',
-  GAP_MASTER_PATH: 'C:\\Users\\silve_i21do49\\OneDrive\\Desktop\\movie-database-files\\dalton_gap_master_popculture_animation_oscars.csv',
-  XLSX_DATA_PATH: 'C:\\Users\\silve_i21do49\\OneDrive\\Desktop\\DALTON PAY ATTENTION\\TRAKT^0LETTERBOXD_WATCHED_DATA.xlsx',
+  MDBLIST_API_KEY: process.env.MDBLIST_API_KEY || '',
+  MDBLIST_QUEUE_LIST_ID: process.env.MDBLIST_QUEUE_LIST_ID || '',
+  DATA_DIR,
+  WATCHED_DATA_PATH: process.env.WATCHED_DATA_PATH || dataPath('watched.csv'),
+  SUPER_LIST_PATH: process.env.SUPER_LIST_PATH || dataPath('super-list.csv'),
+  WATCH_HISTORY_PATH: process.env.WATCH_HISTORY_PATH || dataPath('watch-history.csv'),
+  REVIEW_TRACKER_PATH: process.env.REVIEW_TRACKER_PATH || dataPath('review-tracker.csv'),
+  GAP_LIST_PATH: process.env.GAP_LIST_PATH || dataPath('gap-list.csv'),
+  GAP_MASTER_PATH: process.env.GAP_MASTER_PATH || dataPath('gap-master.csv'),
+  XLSX_DATA_PATH: process.env.XLSX_DATA_PATH || dataPath('watched.xlsx'),
 };

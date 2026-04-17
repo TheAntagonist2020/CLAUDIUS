@@ -4,6 +4,8 @@ const path = require('path');
 const config = require('./config');
 const { getDb } = require('./db');
 const { runFullImport } = require('./import/runFullImport');
+const { importTraktExport } = require('./import/importTraktExport');
+const { seedDemo } = require('./import/seedDemo');
 const { enrichFilms, getEnrichmentStatus } = require('./enrichment/enrichFilms');
 const { buildTasteProfile } = require('./taste/buildProfile');
 const { scoreDiscoveryPool } = require('./discovery/recommend');
@@ -29,10 +31,33 @@ app.use('/api/watchlist', require('./routes/watchlist'));
 app.use('/api/mdblist', require('./routes/mdblist'));
 app.use('/api/curator', require('./routes/curator'));
 
-// Import endpoint
+// Import endpoints
 app.post('/api/import/run', (req, res) => {
   try {
     const result = runFullImport();
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/import/trakt', (req, res) => {
+  try {
+    const sourcePath = (req.body && req.body.path) || null;
+    const result = importTraktExport(sourcePath);
+    if (result && result.error) {
+      return res.status(400).json({ success: false, ...result });
+    }
+    try { buildTasteProfile(); scoreDiscoveryPool(); } catch {}
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/import/seed', (req, res) => {
+  try {
+    const result = seedDemo();
     res.json({ success: true, ...result });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -126,6 +151,10 @@ app.get('/{*splat}', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
 });
 
-app.listen(config.PORT, () => {
-  console.log(`\n  CLAUDIUS server running on http://localhost:${config.PORT}\n`);
+app.listen(config.PORT, config.HOST, () => {
+  const shown = config.HOST === '0.0.0.0' ? 'localhost' : config.HOST;
+  console.log(`\n  CLAUDIUS server running on http://${shown}:${config.PORT}`);
+  if (config.HOST === '0.0.0.0') {
+    console.log(`  (reachable from other devices on your LAN at http://<your-ip>:${config.PORT})\n`);
+  }
 });

@@ -9,6 +9,9 @@ const limiter = new Bottleneck({
 });
 
 async function tmdbFetch(endpoint, params = {}) {
+  if (!config.TMDB_API_KEY) {
+    throw new Error('TMDB_API_KEY is not set — add it to .env (see .env.example).');
+  }
   const url = new URL(`${config.TMDB_BASE_URL}${endpoint}`);
   url.searchParams.set('api_key', config.TMDB_API_KEY);
   for (const [k, v] of Object.entries(params)) {
