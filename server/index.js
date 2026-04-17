@@ -11,10 +11,28 @@ const {
   getDailyPick, getReminderStatus,
   setupScheduledReminder, removeScheduledReminder,
 } = require('./reminder');
+const { isAuthenticated } = require('./trakt/traktClient');
+const { syncFromTrakt } = require('./trakt/traktSync');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Auth — generate a session token on startup
+const SESSION_TOKEN = require('crypto').randomBytes(32).toString('hex');
+
+app.post('/api/auth/login', (req, res) => {
+  const { password } = req.body;
+  if (!config.APP_PASSWORD || password === config.APP_PASSWORD) {
+    return res.json({ token: SESSION_TOKEN });
+  }
+  res.status(401).json({ error: 'Wrong password' });
+});
+
+app.get('/api/auth/verify', (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  res.json({ valid: token === SESSION_TOKEN });
+});
 
 // Serve static frontend in production
 app.use(express.static(path.join(__dirname, '..', 'dist')));
@@ -28,6 +46,8 @@ app.use('/api/rewatch', require('./routes/rewatch'));
 app.use('/api/watchlist', require('./routes/watchlist'));
 app.use('/api/mdblist', require('./routes/mdblist'));
 app.use('/api/curator', require('./routes/curator'));
+app.use('/api/queue', require('./routes/queue'));
+app.use('/api/trakt', require('./routes/trakt'));
 
 // Import endpoint
 app.post('/api/import/run', (req, res) => {
@@ -128,4 +148,12 @@ app.get('/{*splat}', (req, res) => {
 
 app.listen(config.PORT, () => {
   console.log(`\n  CLAUDIUS server running on http://localhost:${config.PORT}\n`);
+
+  // Scheduled Trakt sync
+  const syncIntervalMs = config.TRAKT_SYNC_INTERVAL_HOURS * 60 * 60 * 1000;
+  setInterval(() => {
+    if (!isAuthenticated()) return;
+    console.log('[Trakt] Running scheduled sync...');
+    syncFromTrakt().catch(err => console.error('[Trakt] Scheduled sync error:', err.message));
+  }, syncIntervalMs);
 });

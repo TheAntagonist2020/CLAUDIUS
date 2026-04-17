@@ -1,7 +1,7 @@
--- CLAUDIUS Database Schema
+-- CLAUDIUS Database Schema (Postgres / Neon)
 
 CREATE TABLE IF NOT EXISTS films (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              SERIAL PRIMARY KEY,
     title           TEXT NOT NULL,
     year            INTEGER,
     tmdb_id         INTEGER UNIQUE,
@@ -19,9 +19,9 @@ CREATE TABLE IF NOT EXISTS films (
     tmdb_vote_count INTEGER,
     imdb_rating     REAL,
     enriched        INTEGER DEFAULT 0,
-    enriched_at     TEXT,
-    created_at      TEXT DEFAULT (datetime('now')),
-    updated_at      TEXT DEFAULT (datetime('now'))
+    enriched_at     TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_films_tmdb ON films(tmdb_id);
@@ -60,11 +60,11 @@ CREATE INDEX IF NOT EXISTS idx_credits_person ON film_credits(person_id);
 CREATE INDEX IF NOT EXISTS idx_credits_role ON film_credits(role);
 
 CREATE TABLE IF NOT EXISTS watches (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          SERIAL PRIMARY KEY,
     film_id     INTEGER REFERENCES films(id) ON DELETE CASCADE,
     watched_at  TEXT NOT NULL,
     source      TEXT DEFAULT 'trakt',
-    created_at  TEXT DEFAULT (datetime('now'))
+    created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_watches_film ON watches(film_id);
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS ratings (
 CREATE INDEX IF NOT EXISTS idx_ratings_rating ON ratings(rating);
 
 CREATE TABLE IF NOT EXISTS discovery_pool (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              SERIAL PRIMARY KEY,
     title           TEXT NOT NULL,
     year            INTEGER,
     tmdb_id         INTEGER,
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS discovery_pool (
     poster_path     TEXT,
     excluded        INTEGER DEFAULT 0,
     enriched        INTEGER DEFAULT 0,
-    created_at      TEXT DEFAULT (datetime('now'))
+    created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_discovery_tmdb ON discovery_pool(tmdb_id);
@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS taste_genre_affinity (
     avg_rating      REAL,
     high_rate_pct   REAL,
     affinity_score  REAL,
-    computed_at     TEXT DEFAULT (datetime('now'))
+    computed_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS taste_director_affinity (
@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS taste_director_affinity (
     films_rated     INTEGER,
     avg_rating      REAL,
     affinity_score  REAL,
-    computed_at     TEXT DEFAULT (datetime('now'))
+    computed_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS taste_decade_affinity (
@@ -137,17 +137,17 @@ CREATE TABLE IF NOT EXISTS taste_decade_affinity (
     volume_score    REAL,
     quality_score   REAL,
     affinity_score  REAL,
-    computed_at     TEXT DEFAULT (datetime('now'))
+    computed_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS taste_profile_meta (
     key             TEXT PRIMARY KEY,
     value           TEXT,
-    computed_at     TEXT DEFAULT (datetime('now'))
+    computed_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS watchlist (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          SERIAL PRIMARY KEY,
     film_id     INTEGER REFERENCES films(id),
     tmdb_id     INTEGER,
     title       TEXT NOT NULL,
@@ -157,14 +157,14 @@ CREATE TABLE IF NOT EXISTS watchlist (
     lane        TEXT,
     source      TEXT,
     notes       TEXT,
-    added_at    TEXT DEFAULT (datetime('now')),
-    completed_at TEXT
+    added_at    TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_watchlist_category ON watchlist(category);
 
 CREATE TABLE IF NOT EXISTS review_pipeline (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              SERIAL PRIMARY KEY,
     film_id         INTEGER REFERENCES films(id) ON DELETE CASCADE,
     imdb_id         TEXT,
     source_file     TEXT,
@@ -173,16 +173,16 @@ CREATE TABLE IF NOT EXISTS review_pipeline (
     has_debrief     INTEGER DEFAULT 0,
     wordpress_ready INTEGER DEFAULT 0,
     notes           TEXT,
-    created_at      TEXT DEFAULT (datetime('now')),
-    updated_at      TEXT DEFAULT (datetime('now'))
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS film_notes (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          SERIAL PRIMARY KEY,
     film_id     INTEGER REFERENCES films(id) ON DELETE CASCADE,
     note_type   TEXT DEFAULT 'general',
     content     TEXT NOT NULL,
-    created_at  TEXT DEFAULT (datetime('now'))
+    created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS streaming_availability (
@@ -191,24 +191,23 @@ CREATE TABLE IF NOT EXISTS streaming_availability (
     provider_logo TEXT,
     type        TEXT NOT NULL,
     region      TEXT DEFAULT 'US',
-    fetched_at  TEXT DEFAULT (datetime('now')),
+    fetched_at  TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (film_id, provider_name, type, region)
 );
 
 CREATE TABLE IF NOT EXISTS trakt_sync_log (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              SERIAL PRIMARY KEY,
     synced_at       TEXT NOT NULL,
     watched_count   INTEGER DEFAULT 0,
     ratings_count   INTEGER DEFAULT 0,
     watchlist_count INTEGER DEFAULT 0,
     status          TEXT NOT NULL DEFAULT 'success',
     error_message   TEXT,
-    created_at      TEXT DEFAULT (datetime('now'))
+    created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
--- QUEUE: The no-choice daily assignment system
 CREATE TABLE IF NOT EXISTS queue (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              SERIAL PRIMARY KEY,
     queue_date      TEXT NOT NULL,
     slot            TEXT NOT NULL CHECK(slot IN ('morning', 'afternoon', 'evening', 'bonus')),
     title           TEXT NOT NULL,
@@ -226,9 +225,9 @@ CREATE TABLE IF NOT EXISTS queue (
     rationale       TEXT,
     streaming_info  TEXT,
     status          TEXT NOT NULL DEFAULT 'assigned' CHECK(status IN ('assigned', 'watching', 'completed', 'skipped')),
-    assigned_at     TEXT DEFAULT (datetime('now')),
-    started_at      TEXT,
-    completed_at    TEXT,
+    assigned_at     TIMESTAMPTZ DEFAULT NOW(),
+    started_at      TIMESTAMPTZ,
+    completed_at    TIMESTAMPTZ,
     UNIQUE(queue_date, slot)
 );
 
@@ -241,12 +240,19 @@ CREATE TABLE IF NOT EXISTS queue_settings (
 );
 
 CREATE TABLE IF NOT EXISTS queue_history (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              SERIAL PRIMARY KEY,
     title           TEXT NOT NULL,
     year            INTEGER,
     imdb_id         TEXT,
     completed_at    TEXT NOT NULL,
     slot            TEXT,
     queue_date      TEXT,
-    created_at      TEXT DEFAULT (datetime('now'))
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- App settings (replaces filesystem JSON storage for tokens, preferences, etc.)
+CREATE TABLE IF NOT EXISTS app_settings (
+    key     TEXT PRIMARY KEY,
+    value   JSONB,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );

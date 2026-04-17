@@ -51,7 +51,7 @@ export default function FilmLibrary() {
   const totalPages = Math.ceil(total / 48);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-display text-3xl font-bold text-zinc-100">Library</h1>

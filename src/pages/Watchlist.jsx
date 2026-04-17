@@ -33,7 +33,7 @@ export default function Watchlist() {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
       <div>
         <h1 className="font-display text-3xl font-bold text-zinc-100">Watchlist</h1>
         <p className="text-zinc-500 mt-1">{items.length} films queued</p>

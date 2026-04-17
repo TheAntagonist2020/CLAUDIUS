@@ -3,6 +3,7 @@ dist/
 db/claudius.db
 db/claudius.db-shm
 db/claudius.db-wal
+db/trakt_tokens.json
 data/
 .env
 *.log

@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { getDb } = require('../db');
+const { queryOne } = require('../db');
 const mdbClient = require('../enrichment/mdblistClient');
 const {
   getMovieByImdb, getMovieByTmdb, getUserLists,
@@ -8,13 +8,11 @@ const {
 
 const router = Router();
 
-// Get MDBList info for a film (streaming, ratings)
 router.get('/movie/:filmId', async (req, res) => {
-  const db = getDb();
-  const film = db.prepare('SELECT imdb_id, tmdb_id FROM films WHERE id = ?').get(req.params.filmId);
-  if (!film) return res.status(404).json({ error: 'Film not found' });
-
   try {
+    const film = await queryOne('SELECT imdb_id, tmdb_id FROM films WHERE id = ?', [req.params.filmId]);
+    if (!film) return res.status(404).json({ error: 'Film not found' });
+
     let data;
     if (film.imdb_id) {
       data = await getMovieByImdb(film.imdb_id);
@@ -29,7 +27,6 @@ router.get('/movie/:filmId', async (req, res) => {
   }
 });
 
-// Get streaming availability for a discovery pool film
 router.get('/streams/:imdbId', async (req, res) => {
   try {
     const data = await getMovieByImdb(req.params.imdbId);
@@ -44,7 +41,6 @@ router.get('/streams/:imdbId', async (req, res) => {
   }
 });
 
-// Get all user MDBList lists
 router.get('/lists', async (req, res) => {
   try {
     const lists = await getUserLists();
@@ -54,7 +50,6 @@ router.get('/lists', async (req, res) => {
   }
 });
 
-// Get items in a specific list
 router.get('/lists/:listId/items', async (req, res) => {
   try {
     const items = await getListItems(req.params.listId);
@@ -64,7 +59,6 @@ router.get('/lists/:listId/items', async (req, res) => {
   }
 });
 
-// Add film to a MDBList (Send to Stremio)
 router.post('/lists/:listId/add', async (req, res) => {
   const { imdb_ids } = req.body;
   if (!imdb_ids || !Array.isArray(imdb_ids)) {
@@ -78,16 +72,12 @@ router.post('/lists/:listId/add', async (req, res) => {
   }
 });
 
-// Add a single film from CLAUDIUS to MDBList by film ID
 router.post('/send-to-stremio', async (req, res) => {
   const { film_id, list_id } = req.body;
-  const db = getDb();
-
   let imdbId;
 
-  // Could be a library film or a discovery pool film
   if (film_id) {
-    const film = db.prepare('SELECT imdb_id FROM films WHERE id = ?').get(film_id);
+    const film = await queryOne('SELECT imdb_id FROM films WHERE id = ?', [film_id]);
     if (film) imdbId = film.imdb_id;
   }
 

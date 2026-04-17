@@ -61,29 +61,45 @@ export default function FilmPage() {
         </div>
       )}
 
-      <div className="max-w-5xl mx-auto px-6 -mt-32 relative z-10">
-        <div className="flex gap-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 -mt-20 sm:-mt-32 relative z-10">
+        <div className="flex flex-col sm:flex-row gap-5 sm:gap-8">
           {/* Poster */}
-          <div className="shrink-0 w-48">
-            {film.poster_path ? (
-              <img src={`${TMDB_IMG}${film.poster_path}`} alt={film.title} className="w-full rounded-lg shadow-2xl" />
-            ) : (
-              <div className="w-full aspect-[2/3] bg-zinc-800 rounded-lg flex items-center justify-center text-zinc-600 text-4xl">F</div>
-            )}
+          <div className="shrink-0 flex sm:block gap-4">
+            <div className="w-28 sm:w-48 shrink-0">
+              {film.poster_path ? (
+                <img src={`${TMDB_IMG}${film.poster_path}`} alt={film.title} className="w-full rounded-lg shadow-2xl" />
+              ) : (
+                <div className="w-full aspect-[2/3] bg-zinc-800 rounded-lg flex items-center justify-center text-zinc-600 text-4xl">F</div>
+              )}
+            </div>
+            {/* Title inline with poster on mobile */}
+            <div className="flex-1 sm:hidden pt-1">
+              <h1 className="font-display text-2xl font-bold text-zinc-100 leading-tight">{film.title}</h1>
+              <div className="flex flex-wrap items-center gap-2 mt-2 text-sm text-zinc-400">
+                <span>{film.year}</span>
+                {film.runtime && <span>{film.runtime} min</span>}
+              </div>
+              {film.rating && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className={`text-2xl font-bold rating-${film.rating}`}>{film.rating}</span>
+                  <span className="text-zinc-500 text-sm">/10</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Details */}
-          <div className="flex-1 pt-8">
-            <h1 className="font-display text-4xl font-bold text-zinc-100">{film.title}</h1>
-            <div className="flex items-center gap-4 mt-3 text-sm text-zinc-400">
+          <div className="flex-1 sm:pt-8">
+            <h1 className="hidden sm:block font-display text-4xl font-bold text-zinc-100">{film.title}</h1>
+            <div className="hidden sm:flex items-center gap-4 mt-3 text-sm text-zinc-400">
               <span>{film.year}</span>
               {film.runtime && <span>{film.runtime} min</span>}
               {film.original_language && <span className="uppercase">{film.original_language}</span>}
             </div>
 
-            {/* Your Rating */}
+            {/* Your Rating — desktop only (shown inline on mobile) */}
             {film.rating && (
-              <div className="mt-4 flex items-center gap-3">
+              <div className="hidden sm:flex mt-4 items-center gap-3">
                 <span className={`text-4xl font-bold rating-${film.rating}`}>{film.rating}</span>
                 <span className="text-zinc-500">/10 your rating</span>
               </div>

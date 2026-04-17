@@ -135,9 +135,9 @@ export default function Tonight() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto min-h-screen flex flex-col">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto min-h-screen flex flex-col">
       {/* Progress indicator */}
-      <div className="flex items-center justify-center gap-2 mb-10">
+      <div className="flex items-center justify-center gap-1 sm:gap-2 mb-6 sm:mb-10">
         {STEPS.map((label, i) => (
           <div key={label} className="flex items-center gap-2">
             <button
@@ -384,25 +384,39 @@ function FilmCard({ film, index, total, stremioStatus, onSendToStremio, large })
         ? 'bg-film-card border-gold-400/20 hover:border-gold-400/40'
         : 'bg-film-card border-emerald-500/20 hover:border-emerald-500/40'
     }`}>
-      <div className={`flex gap-6 ${large ? 'p-8' : 'p-6'}`}>
+      <div className={`flex flex-col sm:flex-row gap-4 sm:gap-6 ${large ? 'p-5 sm:p-8' : 'p-4 sm:p-6'}`}>
         {/* Poster */}
-        <div className={`shrink-0 ${large ? 'w-44' : 'w-32'}`}>
-          {film.poster_path ? (
-            <img
-              src={film.poster_path.startsWith('/') ? `${TMDB_IMG}${film.poster_path}` : film.poster_path}
-              alt={film.title}
-              className="w-full rounded-lg shadow-lg"
-            />
-          ) : (
-            <div className="w-full aspect-[2/3] bg-zinc-800 rounded-lg flex items-center justify-center text-zinc-600 text-3xl">
-              F
+        <div className={`shrink-0 ${large ? 'w-full sm:w-44' : 'w-full sm:w-32'} flex sm:block gap-4`}>
+          <div className={`${large ? 'w-28 sm:w-full' : 'w-20 sm:w-full'} shrink-0`}>
+            {film.poster_path ? (
+              <img
+                src={film.poster_path.startsWith('/') ? `${TMDB_IMG}${film.poster_path}` : film.poster_path}
+                alt={film.title}
+                className="w-full rounded-lg shadow-lg"
+              />
+            ) : (
+              <div className="w-full aspect-[2/3] bg-zinc-800 rounded-lg flex items-center justify-center text-zinc-600 text-3xl">
+                F
+              </div>
+            )}
+          </div>
+          {/* Title next to poster on smallest screens */}
+          <div className="flex-1 sm:hidden pt-1">
+            <div className="flex items-center gap-2 mb-1">
+              {number && <span className="text-xs text-zinc-600 uppercase tracking-widest">{number}</span>}
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isRewatch ? 'bg-gold-400/10 text-gold-400' : 'bg-emerald-500/10 text-emerald-400'}`}>{label}</span>
             </div>
-          )}
+            <h2 className="font-display font-bold text-zinc-100 leading-tight text-xl">{film.title}</h2>
+            <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500">
+              <span>{film.year}</span>
+              {film.runtime && <span>{film.runtime} min</span>}
+            </div>
+          </div>
         </div>
 
         {/* Info */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-2">
+          <div className="hidden sm:flex items-center gap-3 mb-2">
             {number && <span className="text-xs text-zinc-600 uppercase tracking-widest">{number}</span>}
             <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
               isRewatch
@@ -413,7 +427,7 @@ function FilmCard({ film, index, total, stremioStatus, onSendToStremio, large })
             </span>
           </div>
 
-          <h2 className={`font-display font-bold text-zinc-100 leading-tight ${large ? 'text-3xl' : 'text-2xl'}`}>
+          <h2 className={`hidden sm:block font-display font-bold text-zinc-100 leading-tight ${large ? 'text-3xl' : 'text-2xl'}`}>
             {film.title}
           </h2>
           <div className="flex items-center gap-3 mt-1 text-sm text-zinc-500">

@@ -1,23 +1,22 @@
-const { getDb } = require('../db');
+const { query, queryOne, execute, transaction } = require('../db');
 
-function buildTasteProfile() {
-  const db = getDb();
+async function buildTasteProfile() {
   console.log('Building taste profile...');
 
-  buildGenreAffinity(db);
-  buildDirectorAffinity(db);
-  buildDecadeAffinity(db);
-  buildProfileMeta(db);
+  await buildGenreAffinity();
+  await buildDirectorAffinity();
+  await buildDecadeAffinity();
+  await buildProfileMeta();
 
   console.log('Taste profile built.');
 }
 
-function buildGenreAffinity(db) {
-  db.exec('DELETE FROM taste_genre_affinity');
+async function buildGenreAffinity() {
+  await execute('DELETE FROM taste_genre_affinity');
 
-  const overallAvg = db.prepare('SELECT AVG(rating) as avg FROM ratings').get().avg || 7;
+  const overallAvg = (await queryOne('SELECT AVG(rating) as avg FROM ratings')).avg || 7;
 
-  const genres = db.prepare(`
+  const genres = await query(`
     SELECT g.id, g.name,
       COUNT(DISTINCT fg.film_id) as films_watched,
       COUNT(DISTINCT r.film_id) as films_rated,
@@ -26,33 +25,34 @@ function buildGenreAffinity(db) {
     FROM genres g
     JOIN film_genres fg ON fg.genre_id = g.id
     LEFT JOIN ratings r ON r.film_id = fg.film_id
-    GROUP BY g.id
-    HAVING films_rated >= 5
-    ORDER BY avg_rating DESC
-  `).all();
-
-  const maxWatched = Math.max(...genres.map(g => g.films_watched), 1);
-  const insert = db.prepare(`
-    INSERT INTO taste_genre_affinity (genre_id, genre_name, films_watched, films_rated, avg_rating, high_rate_pct, affinity_score)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    GROUP BY g.id, g.name
+    HAVING COUNT(DISTINCT r.film_id) >= 5
+    ORDER BY AVG(r.rating) DESC
   `);
 
-  for (const g of genres) {
-    const ratingNorm = Math.max(0, (g.avg_rating - overallAvg + 2) / 4) * 100;
-    const highRateNorm = g.high_rate_pct;
-    const volumeNorm = (g.films_watched / maxWatched) * 100;
-    const affinity = 0.4 * ratingNorm + 0.3 * highRateNorm + 0.3 * volumeNorm;
+  const maxWatched = Math.max(...genres.map(g => g.films_watched), 1);
 
-    insert.run(g.id, g.name, g.films_watched, g.films_rated,
-      Math.round(g.avg_rating * 100) / 100, Math.round(g.high_rate_pct * 10) / 10,
-      Math.round(affinity * 10) / 10);
-  }
+  await transaction(async (client) => {
+    for (const g of genres) {
+      const ratingNorm = Math.max(0, (g.avg_rating - overallAvg + 2) / 4) * 100;
+      const highRateNorm = g.high_rate_pct;
+      const volumeNorm = (g.films_watched / maxWatched) * 100;
+      const affinity = 0.4 * ratingNorm + 0.3 * highRateNorm + 0.3 * volumeNorm;
+
+      await client.query(`
+        INSERT INTO taste_genre_affinity (genre_id, genre_name, films_watched, films_rated, avg_rating, high_rate_pct, affinity_score)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `, [g.id, g.name, g.films_watched, g.films_rated,
+        Math.round(g.avg_rating * 100) / 100, Math.round(g.high_rate_pct * 10) / 10,
+        Math.round(affinity * 10) / 10]);
+    }
+  });
 }
 
-function buildDirectorAffinity(db) {
-  db.exec('DELETE FROM taste_director_affinity');
+async function buildDirectorAffinity() {
+  await execute('DELETE FROM taste_director_affinity');
 
-  const directors = db.prepare(`
+  const directors = await query(`
     SELECT p.id, p.name,
       COUNT(DISTINCT fc.film_id) as films_watched,
       COUNT(DISTINCT r.film_id) as films_rated,
@@ -60,33 +60,32 @@ function buildDirectorAffinity(db) {
     FROM people p
     JOIN film_credits fc ON fc.person_id = p.id AND fc.role = 'director'
     LEFT JOIN ratings r ON r.film_id = fc.film_id
-    GROUP BY p.id
-    HAVING films_rated >= 2
-    ORDER BY avg_rating DESC
-  `).all();
-
-  const insert = db.prepare(`
-    INSERT INTO taste_director_affinity (person_id, director_name, films_watched, films_rated, avg_rating, affinity_score)
-    VALUES (?, ?, ?, ?, ?, ?)
+    GROUP BY p.id, p.name
+    HAVING COUNT(DISTINCT r.film_id) >= 2
+    ORDER BY AVG(r.rating) DESC
   `);
 
-  for (const d of directors) {
-    const ratingScore = Math.max(0, ((d.avg_rating - 5) / 5)) * 100;
-    const volumeBonus = Math.min(d.films_watched * 5, 30);
-    const affinity = Math.min(100, ratingScore + volumeBonus);
+  await transaction(async (client) => {
+    for (const d of directors) {
+      const ratingScore = Math.max(0, ((d.avg_rating - 5) / 5)) * 100;
+      const volumeBonus = Math.min(d.films_watched * 5, 30);
+      const affinity = Math.min(100, ratingScore + volumeBonus);
 
-    insert.run(d.id, d.name, d.films_watched, d.films_rated,
-      Math.round(d.avg_rating * 100) / 100, Math.round(affinity * 10) / 10);
-  }
+      await client.query(`
+        INSERT INTO taste_director_affinity (person_id, director_name, films_watched, films_rated, avg_rating, affinity_score)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [d.id, d.name, d.films_watched, d.films_rated,
+        Math.round(d.avg_rating * 100) / 100, Math.round(affinity * 10) / 10]);
+    }
+  });
 }
 
-function buildDecadeAffinity(db) {
-  db.exec('DELETE FROM taste_decade_affinity');
+async function buildDecadeAffinity() {
+  await execute('DELETE FROM taste_decade_affinity');
 
-  const overallAvg = db.prepare('SELECT AVG(rating) as avg FROM ratings').get().avg || 7;
-  const totalRated = db.prepare('SELECT COUNT(*) as cnt FROM ratings').get().cnt || 1;
+  const overallAvg = (await queryOne('SELECT AVG(rating) as avg FROM ratings')).avg || 7;
 
-  const decades = db.prepare(`
+  const decades = await query(`
     SELECT (f.year / 10 * 10) as decade,
       COUNT(DISTINCT f.id) as films_watched,
       COUNT(DISTINCT r.film_id) as films_rated,
@@ -94,35 +93,34 @@ function buildDecadeAffinity(db) {
     FROM films f
     LEFT JOIN ratings r ON r.film_id = f.id
     WHERE f.year IS NOT NULL
-    GROUP BY decade
-    ORDER BY decade
-  `).all();
-
-  const insert = db.prepare(`
-    INSERT INTO taste_decade_affinity (decade, films_watched, films_rated, avg_rating, volume_score, quality_score, affinity_score)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    GROUP BY (f.year / 10 * 10)
+    ORDER BY (f.year / 10 * 10)
   `);
 
   const maxWatched = Math.max(...decades.map(d => d.films_watched), 1);
 
-  for (const d of decades) {
-    const volumeScore = (d.films_watched / maxWatched) * 100;
-    const qualityScore = d.avg_rating ? Math.max(0, ((d.avg_rating - overallAvg + 2) / 4)) * 100 : 50;
-    const affinity = 0.5 * qualityScore + 0.5 * volumeScore;
+  await transaction(async (client) => {
+    for (const d of decades) {
+      const volumeScore = (d.films_watched / maxWatched) * 100;
+      const qualityScore = d.avg_rating ? Math.max(0, ((d.avg_rating - overallAvg + 2) / 4)) * 100 : 50;
+      const affinity = 0.5 * qualityScore + 0.5 * volumeScore;
 
-    insert.run(d.decade, d.films_watched, d.films_rated,
-      d.avg_rating ? Math.round(d.avg_rating * 100) / 100 : null,
-      Math.round(volumeScore * 10) / 10,
-      Math.round(qualityScore * 10) / 10,
-      Math.round(affinity * 10) / 10);
-  }
+      await client.query(`
+        INSERT INTO taste_decade_affinity (decade, films_watched, films_rated, avg_rating, volume_score, quality_score, affinity_score)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `, [d.decade, d.films_watched, d.films_rated,
+        d.avg_rating ? Math.round(d.avg_rating * 100) / 100 : null,
+        Math.round(volumeScore * 10) / 10,
+        Math.round(qualityScore * 10) / 10,
+        Math.round(affinity * 10) / 10]);
+    }
+  });
 }
 
-function buildProfileMeta(db) {
-  db.exec('DELETE FROM taste_profile_meta');
-  const insert = db.prepare('INSERT OR REPLACE INTO taste_profile_meta (key, value) VALUES (?, ?)');
+async function buildProfileMeta() {
+  await execute('DELETE FROM taste_profile_meta');
 
-  const stats = db.prepare(`
+  const stats = await queryOne(`
     SELECT
       COUNT(DISTINCT f.id) as total_watched,
       (SELECT COUNT(*) FROM ratings) as total_rated,
@@ -131,37 +129,36 @@ function buildProfileMeta(db) {
       (SELECT MAX(year) FROM films) as max_year,
       (SELECT SUM(runtime) FROM films WHERE runtime IS NOT NULL) as total_runtime_min
     FROM films f
-  `).get();
+  `);
 
-  insert.run('total_watched', stats.total_watched);
-  insert.run('total_rated', stats.total_rated);
-  insert.run('overall_avg_rating', Math.round((stats.overall_avg || 0) * 100) / 100);
-  insert.run('year_range', JSON.stringify([stats.min_year, stats.max_year]));
-  insert.run('total_runtime_hours', Math.round((stats.total_runtime_min || 0) / 60));
+  const inserts = [
+    ['total_watched', stats.total_watched],
+    ['total_rated', stats.total_rated],
+    ['overall_avg_rating', Math.round((stats.overall_avg || 0) * 100) / 100],
+    ['year_range', JSON.stringify([stats.min_year, stats.max_year])],
+    ['total_runtime_hours', Math.round((stats.total_runtime_min || 0) / 60)],
+  ];
 
-  // Rating distribution
-  const dist = db.prepare(`
-    SELECT rating, COUNT(*) as cnt FROM ratings GROUP BY rating ORDER BY rating
-  `).all();
-  insert.run('rating_distribution', JSON.stringify(dist));
+  const dist = await query('SELECT rating, COUNT(*) as cnt FROM ratings GROUP BY rating ORDER BY rating');
+  inserts.push(['rating_distribution', JSON.stringify(dist)]);
 
-  // Top genres
-  const topGenres = db.prepare(`
-    SELECT genre_name, affinity_score FROM taste_genre_affinity ORDER BY affinity_score DESC LIMIT 10
-  `).all();
-  insert.run('top_genres', JSON.stringify(topGenres));
+  const topGenres = await query('SELECT genre_name, affinity_score FROM taste_genre_affinity ORDER BY affinity_score DESC LIMIT 10');
+  inserts.push(['top_genres', JSON.stringify(topGenres)]);
 
-  // Top directors
-  const topDirectors = db.prepare(`
-    SELECT director_name, avg_rating, films_watched FROM taste_director_affinity ORDER BY affinity_score DESC LIMIT 20
-  `).all();
-  insert.run('top_directors', JSON.stringify(topDirectors));
+  const topDirectors = await query('SELECT director_name, avg_rating, films_watched FROM taste_director_affinity ORDER BY affinity_score DESC LIMIT 20');
+  inserts.push(['top_directors', JSON.stringify(topDirectors)]);
 
-  // Top decades
-  const topDecades = db.prepare(`
-    SELECT decade, affinity_score FROM taste_decade_affinity ORDER BY affinity_score DESC LIMIT 5
-  `).all();
-  insert.run('top_decades', JSON.stringify(topDecades));
+  const topDecades = await query('SELECT decade, affinity_score FROM taste_decade_affinity ORDER BY affinity_score DESC LIMIT 5');
+  inserts.push(['top_decades', JSON.stringify(topDecades)]);
+
+  await transaction(async (client) => {
+    for (const [key, value] of inserts) {
+      await client.query(
+        'INSERT INTO taste_profile_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
+        [key, String(value)]
+      );
+    }
+  });
 }
 
 module.exports = { buildTasteProfile };

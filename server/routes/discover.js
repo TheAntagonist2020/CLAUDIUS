@@ -1,49 +1,58 @@
 const { Router } = require('express');
-const { getDb } = require('../db');
+const { queryOne, execute } = require('../db');
 const { scoreDiscoveryPool, getRecommendations } = require('../discovery/recommend');
 const router = Router();
 
-router.get('/recommendations', (req, res) => {
-  const { count, genre, decade, min_runtime, max_runtime, mood } = req.query;
-  const recs = getRecommendations({
-    count: count ? Number(count) : 20,
-    genre, decade,
-    minRuntime: min_runtime,
-    maxRuntime: max_runtime,
-    mood,
-  });
+router.get('/recommendations', async (req, res) => {
+  try {
+    const { count, genre, decade, min_runtime, max_runtime, mood } = req.query;
+    const recs = await getRecommendations({
+      count: count ? Number(count) : 20,
+      genre, decade,
+      minRuntime: min_runtime,
+      maxRuntime: max_runtime,
+      mood,
+    });
 
-  // Parse rationale JSON
-  const results = recs.map(r => ({
-    ...r,
-    taste_rationale: r.taste_rationale ? JSON.parse(r.taste_rationale) : [],
-  }));
+    const results = recs.map(r => ({
+      ...r,
+      taste_rationale: r.taste_rationale ? JSON.parse(r.taste_rationale) : [],
+    }));
 
-  res.json(results);
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-router.post('/score', (req, res) => {
+router.post('/score', async (req, res) => {
   try {
-    scoreDiscoveryPool();
+    await scoreDiscoveryPool();
     res.json({ success: true, message: 'Discovery pool scored.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-router.post('/dismiss/:id', (req, res) => {
-  const db = getDb();
-  db.prepare('UPDATE discovery_pool SET excluded = 1 WHERE id = ?').run(req.params.id);
-  res.json({ success: true });
+router.post('/dismiss/:id', async (req, res) => {
+  try {
+    await execute('UPDATE discovery_pool SET excluded = 1 WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-router.get('/stats', (req, res) => {
-  const db = getDb();
-  const total = db.prepare('SELECT COUNT(*) as cnt FROM discovery_pool WHERE excluded = 0').get().cnt;
-  const scored = db.prepare('SELECT COUNT(*) as cnt FROM discovery_pool WHERE taste_score IS NOT NULL AND excluded = 0').get().cnt;
-  const avgScore = db.prepare('SELECT AVG(taste_score) as avg FROM discovery_pool WHERE taste_score IS NOT NULL AND excluded = 0').get().avg;
+router.get('/stats', async (req, res) => {
+  try {
+    const total = (await queryOne('SELECT COUNT(*) as cnt FROM discovery_pool WHERE excluded = 0')).cnt;
+    const scored = (await queryOne('SELECT COUNT(*) as cnt FROM discovery_pool WHERE taste_score IS NOT NULL AND excluded = 0')).cnt;
+    const avgScore = (await queryOne('SELECT AVG(taste_score) as avg FROM discovery_pool WHERE taste_score IS NOT NULL AND excluded = 0')).avg;
 
-  res.json({ total, scored, avgScore: Math.round((avgScore || 0) * 10) / 10 });
+    res.json({ total, scored, avgScore: Math.round((avgScore || 0) * 10) / 10 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

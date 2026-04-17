@@ -32,7 +32,7 @@ export default function Dashboard() {
   if (!data) return <div className="p-8 text-zinc-500">No data yet. Go to Admin to import your films.</div>;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <div>
         <h1 className="font-display text-3xl font-bold text-zinc-100">Welcome back</h1>
@@ -42,24 +42,33 @@ export default function Dashboard() {
       {/* Daily Pick */}
       {dailyPick && (
         <div className="bg-film-card border border-gold-400/20 rounded-xl overflow-hidden">
-          <div className="flex gap-6 p-6">
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 p-4 sm:p-6">
             {/* Poster */}
-            <div className="shrink-0 w-28">
-              {dailyPick.poster_path ? (
-                <img
-                  src={dailyPick.poster_path.startsWith('/') ? `${TMDB_IMG_LG}${dailyPick.poster_path}` : dailyPick.poster_path}
-                  alt={dailyPick.title}
-                  className="w-full rounded-lg shadow-lg"
-                />
-              ) : (
-                <div className="w-full aspect-[2/3] bg-zinc-800 rounded-lg flex items-center justify-center text-zinc-600 text-2xl">F</div>
-              )}
+            <div className="shrink-0 w-full sm:w-28 flex sm:block gap-4">
+              <div className="w-24 sm:w-full shrink-0">
+                {dailyPick.poster_path ? (
+                  <img
+                    src={dailyPick.poster_path.startsWith('/') ? `${TMDB_IMG_LG}${dailyPick.poster_path}` : dailyPick.poster_path}
+                    alt={dailyPick.title}
+                    className="w-full rounded-lg shadow-lg"
+                  />
+                ) : (
+                  <div className="w-full aspect-[2/3] bg-zinc-800 rounded-lg flex items-center justify-center text-zinc-600 text-2xl">F</div>
+                )}
+              </div>
+              {/* Title visible next to poster on smallest screens */}
+              <div className="flex-1 sm:hidden pt-1">
+                <span className="text-xs text-gold-400 uppercase tracking-widest font-medium">Today's Suggestion</span>
+                <h2 className="font-display text-xl font-bold text-zinc-100 mt-1 leading-tight">
+                  {dailyPick.title} <span className="text-zinc-500 text-base font-normal">({dailyPick.year})</span>
+                </h2>
+              </div>
             </div>
 
             {/* Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-2">
-                <span className="text-xs text-gold-400 uppercase tracking-widest font-medium">Today's Suggestion</span>
+                <span className="hidden sm:inline text-xs text-gold-400 uppercase tracking-widest font-medium">Today's Suggestion</span>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                   dailyPick.pick_type === 'rewatch'
                     ? 'bg-gold-400/10 text-gold-400'
@@ -69,7 +78,7 @@ export default function Dashboard() {
                 </span>
               </div>
 
-              <h2 className="font-display text-2xl font-bold text-zinc-100">
+              <h2 className="hidden sm:block font-display text-2xl font-bold text-zinc-100">
                 {dailyPick.title} <span className="text-zinc-500 text-lg font-normal">({dailyPick.year})</span>
               </h2>
 
@@ -231,7 +240,7 @@ function QuickLink({ to, title, desc }) {
 
 function LoadingSkeleton() {
   return (
-    <div className="p-6 max-w-7xl mx-auto animate-pulse space-y-6">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto animate-pulse space-y-6">
       <div className="h-8 w-48 bg-zinc-800 rounded" />
       <div className="grid grid-cols-4 gap-4">
         {[1,2,3,4].map(i => <div key={i} className="h-20 bg-zinc-800 rounded-lg" />)}

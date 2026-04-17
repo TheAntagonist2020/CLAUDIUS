@@ -2,14 +2,14 @@ require('dotenv').config();
 
 module.exports = {
   PORT: process.env.PORT || 3001,
+  DATABASE_URL: process.env.DATABASE_URL,
   TMDB_API_KEY: process.env.TMDB_API_KEY,
   TMDB_BASE_URL: process.env.TMDB_BASE_URL || 'https://api.themoviedb.org/3',
-  DATA_DIR: process.env.DATA_DIR || 'C:\\Users\\silve_i21do49\\OneDrive\\Desktop',
-  WATCHED_DATA_PATH: 'C:\\Users\\silve_i21do49\\OneDrive\\Desktop\\movie-database-files\\complete_movie_data.csv',
-  SUPER_LIST_PATH: 'C:\\Users\\silve_i21do49\\OneDrive\\Desktop\\movie-database-files\\TheAntagonist2049-SUPER-LIST.csv',
-  WATCH_HISTORY_PATH: 'C:\\Users\\silve_i21do49\\OneDrive\\Desktop\\movie-database-files\\complete_movie_watch_history.csv',
-  REVIEW_TRACKER_PATH: 'C:\\Users\\silve_i21do49\\OneDrive\\Desktop\\DALTON PAY ATTENTION\\LUNARA_Review_Tracker.csv',
-  GAP_LIST_PATH: 'C:\\Users\\silve_i21do49\\OneDrive\\Desktop\\movie-database-files\\dalton_gap_mustfix_29.csv',
-  GAP_MASTER_PATH: 'C:\\Users\\silve_i21do49\\OneDrive\\Desktop\\movie-database-files\\dalton_gap_master_popculture_animation_oscars.csv',
-  XLSX_DATA_PATH: 'C:\\Users\\silve_i21do49\\OneDrive\\Desktop\\DALTON PAY ATTENTION\\TRAKT^0LETTERBOXD_WATCHED_DATA.xlsx',
+  TRAKT_CLIENT_ID: process.env.TRAKT_CLIENT_ID,
+  TRAKT_CLIENT_SECRET: process.env.TRAKT_CLIENT_SECRET,
+  TRAKT_SYNC_INTERVAL_HOURS: Number(process.env.TRAKT_SYNC_INTERVAL_HOURS) || 6,
+  APP_PASSWORD: process.env.APP_PASSWORD || 'claudius',
+  MDBLIST_API_KEY: process.env.MDBLIST_API_KEY,
+  JWT_SECRET: process.env.JWT_SECRET || 'claudius-dev-secret-change-in-prod',
+  NODE_ENV: process.env.NODE_ENV || 'development',
 };

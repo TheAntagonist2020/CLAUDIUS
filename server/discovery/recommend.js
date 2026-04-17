@@ -1,36 +1,31 @@
-const { getDb } = require('../db');
+const { query, queryOne, transaction } = require('../db');
 
-function scoreDiscoveryPool() {
-  const db = getDb();
-
-  // Load taste profile
+async function scoreDiscoveryPool() {
   const genreAffinities = {};
-  db.prepare('SELECT genre_name, affinity_score FROM taste_genre_affinity').all()
+  (await query('SELECT genre_name, affinity_score FROM taste_genre_affinity'))
     .forEach(g => { genreAffinities[g.genre_name.toLowerCase()] = g.affinity_score; });
 
   const overallAvg = Number(
-    db.prepare("SELECT value FROM taste_profile_meta WHERE key = 'overall_avg_rating'").get()?.value || 7
+    (await queryOne("SELECT value FROM taste_profile_meta WHERE key = 'overall_avg_rating'"))?.value || 7
   );
 
   const decadeAffinities = {};
-  db.prepare('SELECT decade, affinity_score FROM taste_decade_affinity').all()
+  (await query('SELECT decade, affinity_score FROM taste_decade_affinity'))
     .forEach(d => { decadeAffinities[d.decade] = d.affinity_score; });
 
-  const pool = db.prepare('SELECT * FROM discovery_pool WHERE excluded = 0').all();
+  const pool = await query('SELECT * FROM discovery_pool WHERE excluded = 0');
   console.log(`Scoring ${pool.length} discovery pool films...`);
 
-  const update = db.prepare(
-    'UPDATE discovery_pool SET taste_score = ?, taste_rationale = ? WHERE id = ?'
-  );
-
-  const updateAll = db.transaction(() => {
+  await transaction(async (client) => {
     for (const film of pool) {
       const { score, rationale } = scoreFilm(film, genreAffinities, decadeAffinities, overallAvg);
-      update.run(Math.round(score * 10) / 10, JSON.stringify(rationale), film.id);
+      await client.query(
+        'UPDATE discovery_pool SET taste_score = ?, taste_rationale = ? WHERE id = ?',
+        [Math.round(score * 10) / 10, JSON.stringify(rationale), film.id]
+      );
     }
   });
 
-  updateAll();
   console.log('Discovery pool scored.');
 }
 
@@ -56,33 +51,19 @@ function scoreFilm(film, genreAffinities, decadeAffinities, overallAvg) {
     }
   }
 
-  // Decade match
   const decade = film.year ? Math.floor(film.year / 10) * 10 : null;
   const decadeScore = decade && decadeAffinities[decade] ? decadeAffinities[decade] : 50;
   if (decadeScore > 65 && decade) {
     reasons.push(`From the ${decade}s, one of your favorite eras`);
   }
 
-  // Critical consensus (normalize various ratings to 0-100)
   let criticalScore = 0;
   let criticalSources = 0;
 
-  if (film.imdb_rating && film.imdb_rating > 0) {
-    criticalScore += (film.imdb_rating / 10) * 100;
-    criticalSources++;
-  }
-  if (film.tmdb_rating && film.tmdb_rating > 0) {
-    criticalScore += (film.tmdb_rating / 10) * 100;
-    criticalSources++;
-  }
-  if (film.rt_tomatometer && film.rt_tomatometer > 0) {
-    criticalScore += film.rt_tomatometer;
-    criticalSources++;
-  }
-  if (film.metascore && film.metascore > 0) {
-    criticalScore += film.metascore;
-    criticalSources++;
-  }
+  if (film.imdb_rating && film.imdb_rating > 0) { criticalScore += (film.imdb_rating / 10) * 100; criticalSources++; }
+  if (film.tmdb_rating && film.tmdb_rating > 0) { criticalScore += (film.tmdb_rating / 10) * 100; criticalSources++; }
+  if (film.rt_tomatometer && film.rt_tomatometer > 0) { criticalScore += film.rt_tomatometer; criticalSources++; }
+  if (film.metascore && film.metascore > 0) { criticalScore += film.metascore; criticalSources++; }
 
   criticalScore = criticalSources > 0 ? criticalScore / criticalSources : 50;
 
@@ -90,17 +71,13 @@ function scoreFilm(film, genreAffinities, decadeAffinities, overallAvg) {
     reasons.push(`Strong critical consensus (${film.rt_tomatometer ? film.rt_tomatometer + '% RT' : 'highly rated'})`);
   }
 
-  // List prestige - more source lists = more highly curated
   let listScore = 50;
   if (film.source_lists) {
     const listCount = film.source_lists.split(',').length;
     listScore = Math.min(100, 40 + listCount * 15);
-    if (listCount >= 3) {
-      reasons.push(`Appears on ${listCount} curated lists`);
-    }
+    if (listCount >= 3) reasons.push(`Appears on ${listCount} curated lists`);
   }
 
-  // Runtime preference (sweet spot: 90-140 min)
   let runtimeScore = 70;
   if (film.runtime) {
     if (film.runtime >= 90 && film.runtime <= 140) runtimeScore = 85;
@@ -109,47 +86,40 @@ function scoreFilm(film, genreAffinities, decadeAffinities, overallAvg) {
   }
 
   const totalScore = (
-    0.30 * genreScore +
-    0.15 * decadeScore +
-    0.25 * criticalScore +
-    0.15 * listScore +
-    0.10 * runtimeScore +
-    0.05 * 60 // base
+    0.30 * genreScore + 0.15 * decadeScore + 0.25 * criticalScore +
+    0.15 * listScore + 0.10 * runtimeScore + 0.05 * 60
   );
 
-  if (reasons.length === 0) {
-    reasons.push('Matches your general viewing profile');
-  }
+  if (reasons.length === 0) reasons.push('Matches your general viewing profile');
 
   return { score: totalScore, rationale: reasons };
 }
 
-function getRecommendations({ count = 20, genre, decade, minRuntime, maxRuntime, mood } = {}) {
-  const db = getDb();
-  let query = 'SELECT * FROM discovery_pool WHERE excluded = 0 AND taste_score IS NOT NULL';
+async function getRecommendations({ count = 20, genre, decade, minRuntime, maxRuntime, mood } = {}) {
+  let sql = 'SELECT * FROM discovery_pool WHERE excluded = 0 AND taste_score IS NOT NULL';
   const params = [];
 
   if (genre) {
-    query += ' AND LOWER(genres) LIKE ?';
+    sql += ` AND LOWER(genres) LIKE ?`;
     params.push(`%${genre.toLowerCase()}%`);
   }
   if (decade) {
-    query += ' AND year >= ? AND year < ?';
+    sql += ` AND year >= ? AND year < ?`;
     params.push(Number(decade), Number(decade) + 10);
   }
   if (minRuntime) {
-    query += ' AND runtime >= ?';
+    sql += ` AND runtime >= ?`;
     params.push(Number(minRuntime));
   }
   if (maxRuntime) {
-    query += ' AND runtime <= ?';
+    sql += ` AND runtime <= ?`;
     params.push(Number(maxRuntime));
   }
 
-  query += ' ORDER BY taste_score DESC LIMIT ?';
+  sql += ` ORDER BY taste_score DESC LIMIT ?`;
   params.push(count);
 
-  return db.prepare(query).all(...params);
+  return await query(sql, params);
 }
 
 module.exports = { scoreDiscoveryPool, getRecommendations };

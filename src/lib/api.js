@@ -68,4 +68,21 @@ export const api = {
   getMdblistLists: () => apiFetch('/mdblist/lists'),
   getMdblistListItems: (listId) => apiFetch(`/mdblist/lists/${listId}/items`),
   sendToStremio: (data) => apiFetch('/mdblist/send-to-stremio', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Queue
+  getQueueToday: () => apiFetch('/queue/today'),
+  getQueueCurrent: () => apiFetch('/queue/current'),
+  startQueueFilm: (id) => apiFetch(`/queue/start/${id}`, { method: 'POST' }),
+  completeQueueFilm: (id) => apiFetch(`/queue/complete/${id}`, { method: 'POST' }),
+  skipQueueFilm: (id) => apiFetch(`/queue/skip/${id}`, { method: 'POST' }),
+  addBonusFilm: () => apiFetch('/queue/bonus', { method: 'POST' }),
+  regenerateQueue: () => apiFetch('/queue/regenerate', { method: 'POST' }),
+  getQueueStats: () => apiFetch('/queue/stats'),
+
+  // Trakt
+  getTraktAuthStatus: () => apiFetch('/trakt/auth/status'),
+  startTraktAuth: () => apiFetch('/trakt/auth/start', { method: 'POST' }),
+  pollTraktAuth: (device_code) => apiFetch('/trakt/auth/poll', { method: 'POST', body: JSON.stringify({ device_code }) }),
+  getTraktSyncStatus: () => apiFetch('/trakt/sync/status'),
+  runTraktSync: () => apiFetch('/trakt/sync/run', { method: 'POST' }),
 };

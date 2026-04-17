@@ -1,4 +1,4 @@
-const { getDb } = require('../db');
+const { query } = require('../db');
 
 const MOOD_MAP = {
   adrenaline: { genres: ['action', 'thriller'], boost: ['crime'] },
@@ -14,11 +14,8 @@ const REWATCHABLE_GENRES = new Set([
   'action', 'comedy', 'horror', 'science fiction', 'animation', 'adventure', 'fantasy', 'thriller'
 ]);
 
-function getRewatchSuggestions({ mood, count = 20 } = {}) {
-  const db = getDb();
-
-  // Get all films rated 7+ with their last watch date and genres
-  const films = db.prepare(`
+async function getRewatchSuggestions({ mood, count = 20 } = {}) {
+  const films = await query(`
     SELECT f.id, f.title, f.year, f.poster_path, f.runtime, r.rating,
       (SELECT MAX(w.watched_at) FROM watches w WHERE w.film_id = f.id) as last_watched,
       (SELECT COUNT(*) FROM watches w WHERE w.film_id = f.id) as watch_count,
@@ -30,9 +27,9 @@ function getRewatchSuggestions({ mood, count = 20 } = {}) {
     LEFT JOIN film_genres fg ON fg.film_id = f.id
     LEFT JOIN genres g ON g.id = fg.genre_id
     WHERE r.rating >= 7
-    GROUP BY f.id
+    GROUP BY f.id, r.rating
     ORDER BY r.rating DESC
-  `).all();
+  `);
 
   const now = new Date();
   const scored = films.map(film => {
@@ -46,26 +43,21 @@ function getRewatchSuggestions({ mood, count = 20 } = {}) {
 
 function computeRewatchScore(film, now, mood) {
   const reasons = [];
-
-  // Rating factor (7=0.4, 8=0.6, 9=0.8, 10=1.0)
   const ratingFactor = (film.rating - 6) / 4;
   if (film.rating >= 9) reasons.push(`You rated this ${film.rating}/10`);
 
-  // Time decay - longer since last watch = higher score
   let timeFactor = 0.5;
   if (film.last_watched) {
     const lastDate = new Date(film.last_watched);
     const daysSince = (now - lastDate) / (1000 * 60 * 60 * 24);
     timeFactor = Math.min(1.0, daysSince / (365 * 2));
     if (daysSince > 365 * 2) {
-      const years = Math.floor(daysSince / 365);
-      reasons.push(`Last watched ${years} years ago`);
+      reasons.push(`Last watched ${Math.floor(daysSince / 365)} years ago`);
     } else if (daysSince > 365) {
       reasons.push('Last watched over a year ago');
     }
   }
 
-  // Genre rewatchability
   let genreFactor = 0.5;
   if (film.genres) {
     const filmGenres = film.genres.split(',').map(g => g.trim().toLowerCase());
@@ -73,7 +65,6 @@ function computeRewatchScore(film, now, mood) {
     genreFactor = Math.min(1.0, 0.3 + rewatchableCount * 0.25);
   }
 
-  // Mood matching
   let moodFactor = 0.5;
   if (mood && MOOD_MAP[mood] && film.genres) {
     const filmGenres = film.genres.split(',').map(g => g.trim().toLowerCase());
@@ -81,11 +72,7 @@ function computeRewatchScore(film, now, mood) {
     const boostGenres = MOOD_MAP[mood].boost;
     const moodMatch = filmGenres.some(g => moodGenres.includes(g));
     const boostMatch = filmGenres.some(g => boostGenres.includes(g));
-
-    if (moodMatch) {
-      moodFactor = 0.9;
-      reasons.push(`Matches your ${mood} mood`);
-    }
+    if (moodMatch) { moodFactor = 0.9; reasons.push(`Matches your ${mood} mood`); }
     if (boostMatch) moodFactor = Math.min(1.0, moodFactor + 0.1);
     if (!moodMatch && !boostMatch) moodFactor = 0.1;
   }
@@ -95,7 +82,6 @@ function computeRewatchScore(film, now, mood) {
     : 0.35 * ratingFactor + 0.30 * timeFactor + 0.20 * genreFactor + 0.15 * 0.5;
 
   if (reasons.length === 0) reasons.push('Highly rated and due for a rewatch');
-
   return { score: Math.round(score * 1000) / 10, reasons };
 }
 

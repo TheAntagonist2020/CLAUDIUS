@@ -40,6 +40,10 @@ h1, h2, h3, .font-display {
   border-radius: 3px;
 }
 
+/* Hide scrollbar on mobile bottom nav */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
 /* Rating colors */
 .rating-10, .rating-9 { color: #22c55e; }
 .rating-8, .rating-7 { color: #eab308; }
