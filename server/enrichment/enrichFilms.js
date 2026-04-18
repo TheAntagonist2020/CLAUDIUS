@@ -99,6 +99,15 @@ async function enrichFilms(batchSize = 100) {
     } catch (err) {
       enrichmentStatus.errors++;
       console.error(`  Error enriching "${film.title}" (tmdb:${film.tmdb_id}): ${err.message}`);
+      // 404 = the tmdb_id isn't a movie (often a TV miniseries that Trakt
+      // categorized as a movie). Mark as enriched=1 so we don't loop on it
+      // every run — logged once, skipped forever.
+      if (/\b404\b/.test(err.message)) {
+        try {
+          db.prepare('UPDATE films SET enriched = 1, enriched_at = datetime(\'now\') WHERE id = ?')
+            .run(film.id);
+        } catch {}
+      }
     }
   }
 
