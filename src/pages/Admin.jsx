@@ -10,6 +10,10 @@ export default function Admin() {
   const [reminderTime, setReminderTime] = useState('19:00');
   const [reminderStatus, setReminderStatus] = useState(null);
   const [reminderMsg, setReminderMsg] = useState(null);
+  const [streamingStatus, setStreamingStatus] = useState(null);
+  const [streamingRefreshing, setStreamingRefreshing] = useState(false);
+  const [streamingBatch, setStreamingBatch] = useState(200);
+  const [streamingDays, setStreamingDays] = useState(30);
 
   // Load reminder status
   useEffect(() => {
@@ -33,6 +37,20 @@ export default function Admin() {
     return () => clearInterval(interval);
   }, [enriching]);
 
+  // Poll streaming refresh status while running
+  useEffect(() => {
+    if (!streamingRefreshing) return;
+    const interval = setInterval(async () => {
+      const status = await api.getStreamingStatus();
+      setStreamingStatus(status);
+      if (!status.running) {
+        setStreamingRefreshing(false);
+        clearInterval(interval);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [streamingRefreshing]);
+
   const runImport = async () => {
     setImporting(true);
     try {
@@ -50,6 +68,15 @@ export default function Admin() {
       await api.runEnrich(batchSize);
     } catch (err) {
       setEnriching(false);
+    }
+  };
+
+  const runStreamingRefresh = async () => {
+    setStreamingRefreshing(true);
+    try {
+      await api.refreshStreaming(streamingBatch, streamingDays);
+    } catch (err) {
+      setStreamingRefreshing(false);
     }
   };
 
@@ -118,6 +145,52 @@ export default function Admin() {
                   <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
                     <div className="h-full bg-gold-400 rounded-full transition-all"
                       style={{ width: `${(enrichStatus.completed / enrichStatus.total) * 100}%` }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Step 2b: Refresh Streaming */}
+      <div className="bg-film-card border border-film-border rounded-lg p-6">
+        <h2 className="font-display text-xl text-zinc-200 mb-2">Step 2b: Refresh Streaming Availability</h2>
+        <p className="text-sm text-zinc-500 mb-4">
+          Re-fetch up-to-date streaming providers from TMDb for films whose availability data
+          is older than the specified number of days. Run this periodically to keep
+          "Where to Watch" information current.
+        </p>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-zinc-400">Batch:</label>
+            <input type="number" value={streamingBatch} onChange={e => setStreamingBatch(Number(e.target.value))}
+              className="w-24 bg-film-dark border border-film-border rounded px-3 py-1.5 text-sm text-zinc-200" />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-zinc-400">Stale after:</label>
+            <input type="number" value={streamingDays} onChange={e => setStreamingDays(Number(e.target.value))}
+              className="w-20 bg-film-dark border border-film-border rounded px-3 py-1.5 text-sm text-zinc-200" />
+            <span className="text-sm text-zinc-500">days</span>
+          </div>
+          <button onClick={runStreamingRefresh} disabled={streamingRefreshing}
+            className="px-6 py-2.5 bg-gold-400 text-black font-medium rounded-lg hover:bg-gold-300 disabled:opacity-50">
+            {streamingRefreshing ? 'Refreshing...' : 'Refresh Streaming'}
+          </button>
+        </div>
+        {streamingStatus && (
+          <div className="mt-4 bg-film-dark border border-film-border rounded-lg p-4 text-sm">
+            <div className="flex items-center gap-4 text-zinc-300">
+              <p>Progress: <span className="text-gold-400">{streamingStatus.completed}/{streamingStatus.total}</span></p>
+              {streamingStatus.errors > 0 && <p className="text-red-400">Errors: {streamingStatus.errors}</p>}
+              {!streamingStatus.running && streamingStatus.total > 0 && (
+                <p className="text-emerald-400">Refresh complete.</p>
+              )}
+              {streamingStatus.running && (
+                <div className="flex-1">
+                  <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-gold-400 rounded-full transition-all"
+                      style={{ width: `${(streamingStatus.completed / streamingStatus.total) * 100}%` }} />
                   </div>
                 </div>
               )}
@@ -199,6 +272,7 @@ export default function Admin() {
       <div className="bg-film-dark border border-film-border rounded-lg p-5 text-sm text-zinc-500">
         <p>Recommended workflow: Import &rarr; Enrich (run multiple batches until all films are done) &rarr; Build Profile</p>
         <p className="mt-2">Enrichment runs at ~40 films per 10 seconds due to TMDb rate limits. For 4,500 films, expect ~20 minutes total.</p>
+        <p className="mt-2">Run <strong className="text-zinc-400">Refresh Streaming</strong> periodically (e.g. weekly) to keep "Where to Watch" data current. Streaming catalogs change frequently.</p>
       </div>
     </div>
   );

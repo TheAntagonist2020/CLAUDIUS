@@ -4,7 +4,7 @@ const path = require('path');
 const config = require('./config');
 const { getDb } = require('./db');
 const { runFullImport } = require('./import/runFullImport');
-const { enrichFilms, getEnrichmentStatus } = require('./enrichment/enrichFilms');
+const { enrichFilms, getEnrichmentStatus, refreshStreaming, getStreamingStatus } = require('./enrichment/enrichFilms');
 const { buildTasteProfile } = require('./taste/buildProfile');
 const { scoreDiscoveryPool } = require('./discovery/recommend');
 const {
@@ -55,6 +55,22 @@ app.post('/api/enrich/run', async (req, res) => {
 
 app.get('/api/enrich/status', (req, res) => {
   res.json(getEnrichmentStatus());
+});
+
+// Streaming refresh endpoints
+app.post('/api/enrich/streaming', async (req, res) => {
+  const { batch = 200, stale_days } = req.body || {};
+  const staleDays = stale_days ? Number(stale_days) : undefined;
+  res.json({ message: `Streaming refresh started for up to ${batch} films.` });
+  try {
+    await refreshStreaming(Number(batch), staleDays);
+  } catch (err) {
+    console.error('Streaming refresh error:', err);
+  }
+});
+
+app.get('/api/enrich/streaming/status', (req, res) => {
+  res.json(getStreamingStatus());
 });
 
 // Notes

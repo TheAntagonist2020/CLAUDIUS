@@ -44,6 +44,11 @@ export const api = {
   runImport: () => apiFetch('/import/run', { method: 'POST' }),
   runEnrich: (batch) => apiFetch('/enrich/run', { method: 'POST', body: JSON.stringify({ batch }) }),
   getEnrichStatus: () => apiFetch('/enrich/status'),
+  refreshStreaming: (batch, staleDays) => apiFetch('/enrich/streaming', {
+    method: 'POST',
+    body: JSON.stringify({ batch, stale_days: staleDays }),
+  }),
+  getStreamingStatus: () => apiFetch('/enrich/streaming/status'),
 
   // Search
   search: (q) => apiFetch(`/search?q=${encodeURIComponent(q)}`),

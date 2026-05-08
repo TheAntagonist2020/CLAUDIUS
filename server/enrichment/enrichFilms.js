@@ -1,10 +1,16 @@
 const { getDb } = require('../db');
 const { getMovieDetails } = require('./tmdbClient');
+const config = require('../config');
 
 let enrichmentStatus = { running: false, total: 0, completed: 0, errors: 0 };
+let streamingStatus = { running: false, total: 0, completed: 0, errors: 0, staleDays: 30 };
 
 function getEnrichmentStatus() {
   return { ...enrichmentStatus };
+}
+
+function getStreamingStatus() {
+  return { ...streamingStatus };
 }
 
 async function enrichFilms(batchSize = 100) {
@@ -107,4 +113,79 @@ async function enrichFilms(batchSize = 100) {
   return enrichmentStatus.completed;
 }
 
-module.exports = { enrichFilms, getEnrichmentStatus };
+/**
+ * Re-fetch streaming availability from TMDb for films whose data is older
+ * than `staleDays` days (default: config.STREAMING_STALE_DAYS).
+ * Runs independently of full enrichment so availability stays current.
+ */
+async function refreshStreaming(batchSize = 200, staleDays = config.STREAMING_STALE_DAYS) {
+  if (streamingStatus.running) {
+    console.log('Streaming refresh already in progress.');
+    return 0;
+  }
+
+  const db = getDb();
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - staleDays);
+  const cutoffISO = cutoff.toISOString();
+
+  // Films that are enriched and have stale (or missing) streaming data
+  const stale = db.prepare(`
+    SELECT f.id, f.tmdb_id, f.title
+    FROM films f
+    LEFT JOIN (
+      SELECT film_id, MAX(fetched_at) AS latest_fetch
+      FROM streaming_availability
+      GROUP BY film_id
+    ) sa ON sa.film_id = f.id
+    WHERE f.enriched = 1 AND f.tmdb_id IS NOT NULL
+      AND (sa.film_id IS NULL OR sa.latest_fetch < ?)
+    LIMIT ?
+  `).all(cutoffISO, batchSize);
+
+  if (stale.length === 0) {
+    console.log('No stale streaming data found — all up to date.');
+    return 0;
+  }
+
+  streamingStatus = { running: true, total: stale.length, completed: 0, errors: 0, staleDays };
+  console.log(`Refreshing streaming availability for ${stale.length} films (stale > ${staleDays}d)...`);
+
+  const deleteStreaming = db.prepare('DELETE FROM streaming_availability WHERE film_id = ?');
+  const insertStreaming = db.prepare(`
+    INSERT OR REPLACE INTO streaming_availability (film_id, provider_name, provider_logo, type, region, fetched_at)
+    VALUES (?, ?, ?, ?, 'US', datetime('now'))
+  `);
+
+  for (const film of stale) {
+    try {
+      const details = await getMovieDetails(film.tmdb_id);
+      const providers = details['watch/providers']?.results?.US;
+
+      deleteStreaming.run(film.id);
+      if (providers) {
+        for (const type of ['flatrate', 'rent', 'buy', 'free']) {
+          if (providers[type]) {
+            for (const p of providers[type]) {
+              insertStreaming.run(film.id, p.provider_name, p.logo_path, type);
+            }
+          }
+        }
+      }
+
+      streamingStatus.completed++;
+      if (streamingStatus.completed % 50 === 0) {
+        console.log(`  Streaming refresh: ${streamingStatus.completed}/${streamingStatus.total}...`);
+      }
+    } catch (err) {
+      streamingStatus.errors++;
+      console.error(`  Streaming refresh error for "${film.title}" (tmdb:${film.tmdb_id}): ${err.message}`);
+    }
+  }
+
+  streamingStatus.running = false;
+  console.log(`Streaming refresh complete: ${streamingStatus.completed} updated, ${streamingStatus.errors} errors.`);
+  return streamingStatus.completed;
+}
+
+module.exports = { enrichFilms, getEnrichmentStatus, refreshStreaming, getStreamingStatus };

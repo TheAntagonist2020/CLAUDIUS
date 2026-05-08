@@ -1,9 +1,10 @@
 const Bottleneck = require('bottleneck');
+const config = require('../config');
 
-const MDBLIST_API_KEY = 'pzoitdmb31gwbtrfmgrq951rp';
+const MDBLIST_API_KEY = config.MDBLIST_API_KEY;
 const BASE_URL = 'https://mdblist.com/api';
 const API_BASE_URL = 'https://api.mdblist.com';
-const CLAUDIUS_QUEUE_LIST_ID = 149225;
+const CLAUDIUS_QUEUE_LIST_ID = config.MDBLIST_QUEUE_LIST_ID;
 
 const limiter = new Bottleneck({
   reservoir: 20,
